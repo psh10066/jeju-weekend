@@ -64,6 +64,8 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .ic-heart{-webkit-mask-image:url(icons/heart.svg);mask-image:url(icons/heart.svg)}
 .like.on .ic-heart{-webkit-mask-image:url(icons/heart-fill.svg);mask-image:url(icons/heart-fill.svg)}
 .ic-chat{-webkit-mask-image:url(icons/chat-circle.svg);mask-image:url(icons/chat-circle.svg)}
+.ic-down{-webkit-mask-image:url(icons/download-simple.svg);mask-image:url(icons/download-simple.svg)}
+.save{margin-left:auto;display:flex;align-items:center;gap:4px;border:0;background:none;padding:2px;color:var(--ink);font-size:12px;font-weight:650}.save .ic{width:24px;height:24px}
 .like{border:0;background:none;padding:2px;color:var(--ink);line-height:0}.like.on{color:#ed4956}
 .like.pop .ic{animation:pop .35s ease-out}@keyframes pop{45%{transform:scale(1.28)}}
 .cmt-ico{cursor:pointer;color:var(--ink);padding:2px;line-height:0}
@@ -345,7 +347,8 @@ function socialHtml(r) { // 좋아요(누가·언제) · 댓글(누가·언제, 
   const SHOW = 2, hidden = cs.length > SHOW && !openComments.has(r.id);
   return `<div class="social">
     <div class="acts"><button type="button" class="like${liked ? ' on' : ''}" data-like="${r.id}" aria-pressed="${liked}" aria-label="좋아요"><i class="ic ic-heart"></i></button>
-      <label class="cmt-ico" for="c${r.id}" aria-label="댓글 달기"><i class="ic ic-chat"></i></label></div>
+      <label class="cmt-ico" for="c${r.id}" aria-label="댓글 달기"><i class="ic ic-chat"></i></label>
+      ${r.photo_paths.length ? `<button type="button" class="save" data-save="${r.id}" aria-label="사진·동영상 저장"><i class="ic ic-down"></i>${r.photo_paths.length > 1 ? `${r.photo_paths.length}개 저장` : '저장'}</button>` : ''}</div>
     ${ls.length ? `<details class="likers"><summary>${ls.map(x => esc(roleOf(x.user_id))).join(', ')}님이 좋아해요</summary>
       <ul>${ls.map(x => `<li>${av(roleOf(x.user_id), 'sm')} ${esc(roleOf(x.user_id))} <span class="t">${when(x.created_at)}</span></li>`).join('')}</ul></details>` : ''}
     ${hidden ? `<button type="button" class="more" data-all-comments="${r.id}">댓글 ${cs.length}개 모두 보기</button>` : ''}
@@ -636,6 +639,33 @@ async function unvisit(v) {
 }
 $('#sDel').onclick = async () => { if (cur.visit && await unvisit(cur.visit)) $('#sheet').close(); };
 
+// 사진·동영상 저장: 폰에선 공유 창(→ '이미지 저장'으로 앨범에), 안 되면 파일로 내려받기
+const saved = {}; // review id → File[] (공유 창은 누른 직후에만 열려서, 받느라 늦으면 한 번 더 누를 때 바로 연다)
+async function saveMedia(id, btn) {
+  const r = reviews.find(x => x.id === +id);
+  if (!r) return;
+  const label = btn.innerHTML;
+  if (!saved[id]) {
+    btn.disabled = true; btn.lastChild.textContent = '받는 중…';
+    try {
+      saved[id] = await Promise.all(r.photo_paths.map(async (p, i) => {
+        const blob = await (await fetch(photos[p])).blob();
+        return new File([blob], `제주-${roleOf(r.user_id)}-${r.id}-${i + 1}.${p.split('.').pop()}`, { type: blob.type });
+      }));
+    } catch { btn.disabled = false; btn.innerHTML = label; return alert('받지 못했어요. 새로고침 후 다시 눌러주세요.'); }
+    btn.disabled = false; btn.innerHTML = label;
+  }
+  const files = saved[id];
+  if (navigator.canShare?.({ files })) {
+    try { return await navigator.share({ files }); }
+    catch (x) {
+      if (x.name === 'AbortError') return; // 공유 창을 닫음
+      if (x.name === 'NotAllowedError') { btn.lastChild.textContent = '준비됨 · 한 번 더 누르기'; return; }
+    }
+  }
+  files.forEach(f => { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(f), download: f.name }); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 60e3); });
+}
+
 function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
   const v = visits.find(x => x.id === +id);
   if (!v) return;
@@ -676,6 +706,7 @@ document.addEventListener('click', async e => {
   if (d.here) return openSheet({ newPlace: true, after: d.here });
   if (d.more) { e.target.previousElementSibling.classList.add('open'); return e.target.remove(); }
   if (d.goto) return gotoVisit(d.goto);
+  if (d.save) return saveMedia(d.save, e.target.closest('button'));
   if (d.cancelVisit) return unvisit(visits.find(x => x.id === +d.cancelVisit));
   if (d.delVisit) return deleteVisit(visits.find(x => x.id === +d.delVisit));
   if (d.editReview) return openSheet({ editId: d.editReview });
