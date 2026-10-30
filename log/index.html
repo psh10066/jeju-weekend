@@ -52,9 +52,10 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .post-imgs{position:relative}
 .post-imgs .track{display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
 .post-imgs .track::-webkit-scrollbar{display:none}
-.post-imgs img{flex:0 0 100%;width:100%;aspect-ratio:1;object-fit:cover;scroll-snap-align:center;display:block;background:var(--soft)}
+.post-imgs img,.post-imgs video{flex:0 0 100%;width:100%;aspect-ratio:4/5;object-fit:cover;scroll-snap-align:center;display:block;background:var(--soft)}
+.post-imgs video{background:#000;object-fit:contain}
 .post-imgs .cnt{position:absolute;top:10px;right:10px;background:#263e36b3;color:#fff;font-size:11px;border-radius:20px;padding:2px 8px}
-.post-b{padding:10px 12px 13px;font-size:14px;line-height:1.6}
+.post-b{padding:10px 12px 13px;font-size:14px;line-height:1.6}.post-b .clamp>b:first-child{display:block}
 .post-b .st{color:#d99b38;letter-spacing:-1px;display:block;font-size:13px}
 .post-b b{margin-right:6px}
 .social{padding:0 12px 12px;font-size:13px}
@@ -84,7 +85,10 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 .stars{display:flex;gap:2px}.stars input{position:absolute;opacity:0;pointer-events:none}
 .stars label{font-size:28px;color:#d6d0c0;cursor:pointer;line-height:1;padding:2px}
 .stars label.on{color:#d99b38}.stars input:focus-visible+label{outline:2px solid #d99b38}
-.previews{display:flex;gap:6px;overflow-x:auto;margin-top:6px}.previews img{width:64px;height:64px;object-fit:cover;border-radius:6px;flex:none}
+.previews{display:flex;gap:6px;overflow-x:auto;margin-top:6px}.previews img,.previews video{width:64px;height:64px;object-fit:cover;border-radius:6px;flex:none;background:#000}
+.pick{display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--line);border-radius:7px;padding:12px;font-size:14px;font-weight:650;background:#fff;cursor:pointer}
+.pick input{position:absolute;width:1px;height:1px;opacity:0}.pick:focus-within{outline:2px solid #d99b38}
+.rv .thumbs video{width:46px;height:46px;object-fit:cover;border-radius:5px;display:block;background:#000}
 .mobile-nav a.lg-nav{color:#a57a2c}
 [hidden]{display:none!important}
 @media(max-width:700px){
@@ -121,7 +125,7 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 <div id="sPosBox" hidden><label class="lg-field" for="sPos">계획표 어디에 넣을까요?</label><select class="lg-input" id="sPos"></select></div>
 <div id="sStarBox"><span class="lg-field">별점 (선택)</span><div class="stars" id="sStars"></div></div>
 <label class="lg-field" for="sBody">글</label><textarea class="lg-input" id="sBody" maxlength="5000" placeholder="오늘 어땠어요? (줄바꿈 가능)"></textarea>
-<div id="sPhotoBox"><label class="lg-field" for="sPhoto">사진 (여러 장, 최대 10장)</label><input class="lg-input" id="sPhoto" type="file" accept="image/*" multiple>
+<div id="sPhotoBox"><span class="lg-field">사진·동영상 (최대 10개, 동영상은 50MB까지)</span><label class="pick">📷 사진·동영상 선택<input id="sPhoto" type="file" accept="image/*,video/*" multiple></label>
 <div class="previews" id="sPreviews"></div></div>
 <p class="lg-err" id="sErr"></p>
 <div class="lg-btns"><button type="button" class="lg-b ghost" id="sClose">닫기</button><button class="lg-b" id="sSave">올리기</button></div>
@@ -315,7 +319,8 @@ const counts = r => { // 계획표 탭에선 좋아요·댓글 수만
 function reviewsHtml(visit) { // 계획표 탭: 장소 아래 짧게
   return reviews.filter(r => r.visit_id === visit.id).reverse().map(r => `<div class="rv">${av(roleOf(r.user_id), 'sm')}
     <div><b>${esc(roleOf(r.user_id))}</b> ${stars(r.rating)}${counts(r)}${r.user_id === me?.id ? ` <button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}${r.body ? longText(r.body, 3) : ''}
-    ${r.photo_paths.length ? `<div class="thumbs">${r.photo_paths.slice(0, 4).map(p => photos[p] ? `<img src="${esc(photos[p])}" alt="" loading="lazy">` : '').join('')}</div>` : ''}</div></div>`).join('');
+    ${r.photo_paths.length ? `<div class="thumbs">${r.photo_paths.slice(0, 4).map(p => !photos[p] ? '' : isVideo(p)
+      ? `<video src="${esc(photos[p])}#t=0.1" muted playsinline preload="metadata"></video>` : `<img src="${esc(photos[p])}" alt="" loading="lazy">`).join('')}</div>` : ''}</div></div>`).join('');
 }
 
 function postHtml(r) { // 피드 탭: 인스타 카드
@@ -325,7 +330,9 @@ function postHtml(r) { // 피드 탭: 인스타 카드
     <div class="post-h">${av(roleOf(r.user_id))}<div><div class="n">${esc(roleOf(r.user_id))} <span class="t">· ${when(r.created_at)}</span></div>
       ${v ? `<button type="button" class="pl" data-goto="${v.id}">📍 ${esc(v.place_name)}</button>` : ''}</div>
       <span style="margin-left:auto">${r.user_id === me?.id ? `<button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}</span></div>
-    ${imgs.length ? `<div class="post-imgs"><div class="track">${imgs.map((p, i) => `<img src="${esc(photos[p])}" alt="${esc(roleOf(r.user_id))}의 사진 ${i + 1}" loading="lazy">`).join('')}</div>${imgs.length > 1 ? `<span class="cnt">${imgs.length}장</span>` : ''}</div>` : ''}
+    ${imgs.length ? `<div class="post-imgs"><div class="track">${imgs.map((p, i) => isVideo(p)
+      ? `<video src="${esc(photos[p])}#t=0.1" controls playsinline preload="metadata"></video>`
+      : `<img src="${esc(photos[p])}" alt="${esc(roleOf(r.user_id))}의 사진 ${i + 1}" loading="lazy">`).join('')}</div>${imgs.length > 1 ? `<span class="cnt">${imgs.length}개</span>` : ''}</div>` : ''}
     ${r.rating || r.body ? `<div class="post-b">${stars(r.rating)}${r.body ? longText(r.body, 5, `<b>${esc(roleOf(r.user_id))}</b>`) : ''}</div>` : ''}
     ${socialHtml(r)}
   </article>`;
@@ -481,8 +488,11 @@ $('#sPlace').onchange = e => {
 };
 $('#sPhoto').onchange = e => {
   const files = [...e.target.files];
-  $('#sErr').textContent = files.length > 10 ? '사진은 10장까지 올릴 수 있어요. 앞의 10장만 올라가요.' : '';
-  $('#sPreviews').innerHTML = files.slice(0, 10).map(f => `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
+  $('#sErr').textContent = files.length > 10 ? '최대 10개까지 올릴 수 있어요. 앞의 10개만 올라가요.' : '';
+  const big = files.find(f => isVideoFile(f) && f.size > 50 * 1024 * 1024);
+  if (big) $('#sErr').textContent = `‘${big.name}’은 50MB가 넘어서 올릴 수 없어요. 짧게 잘라서 올려주세요.`;
+  $('#sPreviews').innerHTML = files.slice(0, 10).map(f => isVideoFile(f)
+    ? `<video src="${URL.createObjectURL(f)}" muted playsinline preload="metadata"></video>` : `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
 };
 $('#sClose').onclick = () => $('#sheet').close();
 const grow = () => { const b = $('#sBody'); b.style.height = 'auto'; b.style.height = b.scrollHeight + 2 + 'px'; };
@@ -526,12 +536,15 @@ $('#sResolve').onclick = async () => {
   if (p) { $('#sPlace').value = p.url; $('#sPlace').dispatchEvent(new Event('change')); if (!cur.edit) $('#sMeta').textContent = '계획표에 있는 곳이라 그 장소로 올려요'; }
 };
 
-async function shrink(file) { // 긴 변 1600px JPEG로 줄여서 무료 저장공간 아끼기
+const VIDEO_EXT = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm' };
+const isVideoFile = f => f.type.startsWith('video/');
+const isVideo = p => /\.(mp4|mov|webm)$/i.test(p);
+async function shrink(file) { // 짧은 변 1440px·긴 변 3200px 이하로만 줄인다 (폰 화면 폭의 실제 픽셀보다 크게, 무료 저장공간은 아끼게)
   const img = await createImageBitmap(file);
-  const k = Math.min(1, 1600 / Math.max(img.width, img.height));
+  const k = Math.min(1, 1440 / Math.min(img.width, img.height), 3200 / Math.max(img.width, img.height));
   const c = Object.assign(document.createElement('canvas'), { width: Math.round(img.width * k), height: Math.round(img.height * k) });
   c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
-  return new Promise(res => c.toBlob(res, 'image/jpeg', 0.82));
+  return new Promise(res => c.toBlob(res, 'image/jpeg', 0.88));
 }
 
 async function ensureVisit() { // 장소가 정해졌으면 방문 기록(가족 공용 1건)을 찾거나 만든다
@@ -553,6 +566,7 @@ async function ensureVisit() { // 장소가 정해졌으면 방문 기록(가족
 
 $('#sheetForm').onsubmit = async e => {
   e.preventDefault();
+  const label = $('#sSave').textContent;
   $('#sSave').disabled = true; $('#sErr').textContent = '';
   try {
     if (!$('#sWhenBox').hidden && !$('#sDay').value) throw new Error('다녀온 날짜를 골라주세요');
@@ -572,13 +586,17 @@ $('#sheetForm').onsubmit = async e => {
     }
     const hasPost = body || rating || files.length;
     if (!hasPost && moved) { $('#sheet').close(); return load(); }
-    if (!hasPost && (cur.visit || $('#sPlace').value === '' && !cur.planUrl)) throw new Error('글이나 사진을 넣어주세요');
+    if (!hasPost && (cur.visit || $('#sPlace').value === '' && !cur.planUrl)) throw new Error('글이나 사진·동영상을 넣어주세요');
     const visit = await ensureVisit();
     if (hasPost && myReview(visit)) throw new Error('이미 이 장소에 리뷰를 남겼어요. ‘내 리뷰 수정’으로 고쳐주세요');
     if (hasPost) {
-      const photo_paths = files.map(() => `${me.id}/${crypto.randomUUID()}.jpg`);
+      if (files.some(f => isVideoFile(f) && f.size > 50 * 1024 * 1024)) throw new Error('50MB가 넘는 동영상은 올릴 수 없어요');
+      const photo_paths = files.map(f => `${me.id}/${crypto.randomUUID()}.${isVideoFile(f) ? VIDEO_EXT[f.type] ?? 'mp4' : 'jpg'}`);
+      $('#sSave').textContent = '올리는 중…';
       await Promise.all(files.map(async (f, i) => {
-        const up = await sb.storage.from('photos').upload(photo_paths[i], await shrink(f), { contentType: 'image/jpeg' });
+        const up = isVideoFile(f)
+          ? await sb.storage.from('photos').upload(photo_paths[i], f, { contentType: VIDEO_EXT[f.type] ? f.type : 'video/mp4' })
+          : await sb.storage.from('photos').upload(photo_paths[i], await shrink(f), { contentType: 'image/jpeg' });
         if (up.error) throw up.error;
       }));
       const { error } = await sb.from('reviews').insert({ visit_id: visit?.id ?? null, user_id: me.id, rating, body, photo_paths });
@@ -589,7 +607,7 @@ $('#sheetForm').onsubmit = async e => {
     }
     $('#sheet').close();
     load();
-  } catch (x) { $('#sErr').textContent = x.message; $('#sSave').disabled = false; }
+  } catch (x) { $('#sErr').textContent = x.message; $('#sSave').disabled = false; $('#sSave').textContent = label; }
 };
 
 async function deleteVisit(v) {
