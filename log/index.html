@@ -88,7 +88,7 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 .stars label{font-size:28px;color:#d6d0c0;cursor:pointer;line-height:1;padding:2px}
 .stars label.on{color:#d99b38}.stars input:focus-visible+label{outline:2px solid #d99b38}
 .previews{display:flex;gap:6px;overflow-x:auto;margin-top:6px}.previews:empty{display:none}.keep{position:relative;flex:none}
-#sKeep img,#sKeep video{width:88px;height:88px}.keep button{width:28px!important;height:28px!important;font-size:13px!important}
+#sPreviews img,#sPreviews video{width:88px;height:88px}.keep button{width:28px!important;height:28px!important;font-size:13px!important}
 .keep button.left{top:auto;bottom:2px;right:auto;left:2px}.keep button.right{top:auto;bottom:2px}
 .keep button{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;border:0;background:#263e36cc;color:#fff;font-size:12px;line-height:1;padding:0}.previews img,.previews video{width:64px;height:64px;object-fit:cover;border-radius:6px;flex:none;background:#000}
 .pick{display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--line);border-radius:7px;padding:12px;font-size:14px;font-weight:650;background:#fff;cursor:pointer}
@@ -131,7 +131,7 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 <div id="sStarBox"><span class="lg-field">별점 (선택)</span><div class="stars" id="sStars"></div></div>
 <div id="sBodyBox"><label class="lg-field" for="sBody">글</label><textarea class="lg-input" id="sBody" maxlength="5000" placeholder="오늘 어땠어요? (줄바꿈 가능)"></textarea></div>
 <div id="sPhotoBox"><span class="lg-field">사진·동영상 (최대 10개, 동영상은 50MB까지)</span><label class="pick">📷 사진·동영상 선택<input id="sPhoto" type="file" accept="image/*,video/*" multiple></label>
-<div class="previews" id="sKeep"></div><div class="previews" id="sPreviews"></div></div>
+<div class="previews" id="sPreviews"></div></div>
 <p class="lg-err" id="sErr"></p>
 <div class="lg-btns"><button type="button" class="lg-b ghost" id="sClose">닫기</button><button class="lg-b" id="sSave">올리기</button></div>
 <div class="lg-btns" id="sDelBox" hidden><button type="button" class="lg-b danger" id="sDel"></button></div>
@@ -423,8 +423,9 @@ function openSheet({ planUrl = null, visitId = null, newPlace = false, after = n
   const visit = visitId ? visits.find(v => v.id === +visitId) : planUrl ? visits.find(v => v.plan_ref === planUrl) : null;
   if (myReview(visit)) return openEdit(myReview(visit));
   const fixed = !!(planUrl || visit);
-  cur = { planUrl, visit, newPlace, name: visit?.place_name ?? plan.find(x => x.url === planUrl)?.name };
-  $('#sheetForm').reset(); paintStars(); $('#sPreviews').innerHTML = $('#sKeep').innerHTML = ''; $('#sBody').style.height = '';
+  cur = { planUrl, visit, newPlace, media: [], name: visit?.place_name ?? plan.find(x => x.url === planUrl)?.name };
+  $('#sheetForm').reset(); paintStars(); $('#sBody').style.height = '';
+  paintMedia();
   $('#sTitle').textContent = fixed ? cur.name : newPlace ? '계획 밖 장소 추가' : '새 글';
   $('#sMeta').textContent = visit?.visited_at ? `${when(visit.visited_at)} 다녀옴 · ${ga(roleOf(visit.user_id))} 처음 기록` : fixed ? '글 없이 올려도 ‘다녀옴’으로 표시돼요' : '';
   $('#sPlaceBox').hidden = fixed || newPlace;
@@ -442,9 +443,9 @@ function openSheet({ planUrl = null, visitId = null, newPlace = false, after = n
 }
 function openEdit(r) { // 본인 글 수정: 글·별점·사진(빼기·더하기)
   const v = r.visit_id ? visits.find(x => x.id === r.visit_id) : null;
-  cur = { edit: r, keep: [...r.photo_paths] };
-  $('#sheetForm').reset(); $('#sPreviews').innerHTML = '';
-  paintKeep();
+  cur = { edit: r, media: [...r.photo_paths] };
+  $('#sheetForm').reset();
+  paintMedia();
   $('#sTitle').textContent = v ? `내 리뷰 수정` : '글 수정';
   $('#sMeta').textContent = v ? `📍 ${v.place_name}` : '';
   $('#sPlaceBox').hidden = $('#sNew').hidden = $('#sDelBox').hidden = true;
@@ -496,27 +497,30 @@ $('#sPlace').onchange = e => {
   showWhen(cur.visit, !!v);
   showDel(cur.visit);
 };
-function paintKeep() { // 수정 중인 글에 이미 있는 사진·동영상, ✕로 뺀다
-  $('#sKeep').innerHTML = (cur.keep ?? []).map((p, i) => `<span class="keep">${isVideo(p)
-    ? `<video src="${esc(photos[p] ?? '')}#t=0.1" muted playsinline preload="metadata"></video>` : `<img src="${esc(photos[p] ?? '')}" alt="">`}<button type="button" data-unkeep="${esc(p)}" aria-label="이 사진 빼기">✕</button>${
+// 올릴 사진·동영상: 이미 올라간 건 경로(문자열), 새로 고른 건 File. 이 순서대로 저장되고 첫 장이 피드 대표
+const blobUrl = new WeakMap(), src = x => typeof x === 'string' ? photos[x] ?? ''
+  : blobUrl.get(x) ?? (blobUrl.set(x, URL.createObjectURL(x)), blobUrl.get(x));
+function paintMedia() {
+  $('#sPreviews').innerHTML = cur.media.map((x, i) => `<span class="keep">${(typeof x === 'string' ? isVideo(x) : isVideoFile(x))
+    ? `<video src="${esc(src(x))}#t=0.1" muted playsinline preload="metadata"></video>` : `<img src="${esc(src(x))}" alt="">`}<button type="button" data-unkeep="${i}" aria-label="빼기">✕</button>${
     i ? `<button type="button" class="left" data-left="${i}" aria-label="앞으로 옮기기">◀</button>` : ''}${
-    i < cur.keep.length - 1 ? `<button type="button" class="right" data-left="${i + 1}" aria-label="뒤로 옮기기">▶</button>` : ''}</span>`).join('');
+    i < cur.media.length - 1 ? `<button type="button" class="right" data-left="${i + 1}" aria-label="뒤로 옮기기">▶</button>` : ''}</span>`).join('');
 }
-$('#sKeep').onclick = e => {
-  const { unkeep, left } = e.target.dataset;
-  if (unkeep) cur.keep = cur.keep.filter(x => x !== unkeep);
-  else if (left) { const k = cur.keep, i = +left; [k[i - 1], k[i]] = [k[i], k[i - 1]]; } // 첫 장이 피드 대표 사진
+$('#sPreviews').onclick = e => {
+  const { unkeep, left } = e.target.dataset, m = cur.media;
+  if (unkeep) m.splice(+unkeep, 1);
+  else if (left) { const i = +left; [m[i - 1], m[i]] = [m[i], m[i - 1]]; }
   else return;
-  paintKeep();
+  paintMedia();
 };
-$('#sPhoto').onchange = e => {
-  const files = [...e.target.files];
-  const room = 10 - (cur.keep?.length ?? 0);
-  $('#sErr').textContent = files.length > room ? (cur.edit ? `지금 글에 ${cur.keep.length}개가 있어서 ${room}개만 더 넣을 수 있어요` : '최대 10개까지 올릴 수 있어요. 앞의 10개만 올라가요.') : '';
-  const big = files.find(f => isVideoFile(f) && f.size > 50 * 1024 * 1024);
-  if (big) $('#sErr').textContent = `‘${big.name}’은 50MB가 넘어서 올릴 수 없어요. 짧게 잘라서 올려주세요.`;
-  $('#sPreviews').innerHTML = files.slice(0, 10).map(f => isVideoFile(f)
-    ? `<video src="${URL.createObjectURL(f)}" muted playsinline preload="metadata"></video>` : `<img src="${URL.createObjectURL(f)}" alt="">`).join('');
+$('#sPhoto').onchange = e => { // 고를 때마다 뒤에 더한다 (여러 번 나눠 골라도 됨)
+  const files = [...e.target.files], big = files.filter(f => isVideoFile(f) && f.size > 50 * 1024 * 1024);
+  const ok = files.filter(f => !big.includes(f)), room = 10 - cur.media.length;
+  cur.media.push(...ok.slice(0, room));
+  $('#sErr').textContent = big.length ? `‘${big[0].name}’은 50MB가 넘어서 뺐어요. 짧게 잘라서 올려주세요.`
+    : ok.length > room ? `모두 10개까지라 ${ok.length - room}개는 빠졌어요` : '';
+  e.target.value = '';
+  paintMedia();
 };
 $('#sClose').onclick = () => $('#sheet').close();
 const grow = () => { const b = $('#sBody'); b.style.height = 'auto'; b.style.height = b.scrollHeight + 2 + 'px'; };
@@ -617,16 +621,15 @@ $('#sheetForm').onsubmit = async e => {
       const { error } = await sb.from('visits').update({ visited_at: whenISO(), visited_on: $('#sDay').value }).eq('id', target.id);
       if (error) throw error;
     }
-    const body = $('#sBody').value.trim() || null, files = [...$('#sPhoto').files].slice(0, 10);
+    const body = $('#sBody').value.trim() || null, files = cur.media?.filter(x => x instanceof File) ?? [];
+    const upload = async () => { const up = await uploadMedia(files); return { up, paths: cur.media.map(x => x instanceof File ? up[files.indexOf(x)] : x) }; };
     const rating = $('#sStarBox').hidden ? null : +($('#sStars input:checked')?.value || 0) || null;
     if (cur.edit) {
-      const all = [...$('#sPhoto').files]; // 10개 제한은 남긴 것 + 새로 고른 것 합쳐서
-      if (cur.keep.length + all.length > 10) throw new Error(`사진·동영상은 모두 10개까지예요. ${cur.keep.length + all.length - 10}개를 빼주세요`);
-      if (!body && !rating && !cur.keep.length && !all.length) throw new Error('글을 비우려면 ‘지우기’를 눌러주세요');
-      const added = await uploadMedia(all);
-      const { error } = await sb.from('reviews').update({ body, rating, photo_paths: [...cur.keep, ...added] }).eq('id', cur.edit.id);
-      if (error) { if (added.length) await sb.storage.from('photos').remove(added); throw error; }
-      const removed = cur.edit.photo_paths.filter(p => !cur.keep.includes(p));
+      if (!body && !rating && !cur.media.length) throw new Error('글을 비우려면 ‘지우기’를 눌러주세요');
+      const { up, paths } = await upload();
+      const { error } = await sb.from('reviews').update({ body, rating, photo_paths: paths }).eq('id', cur.edit.id);
+      if (error) { if (up.length) await sb.storage.from('photos').remove(up); throw error; }
+      const removed = cur.edit.photo_paths.filter(p => !paths.includes(p));
       if (removed.length) await sb.storage.from('photos').remove(removed);
       $('#sheet').close(); return load();
     }
