@@ -57,6 +57,15 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .post-b{padding:10px 12px 13px;font-size:14px;line-height:1.6}
 .post-b .st{color:#d99b38;letter-spacing:-1px;display:block;font-size:13px}
 .post-b b{margin-right:6px}
+.social{padding:0 12px 12px;font-size:13px}
+.acts{display:flex;gap:14px;align-items:center;padding:2px 0 4px}
+.like{border:0;background:none;font-size:24px;line-height:1;padding:2px;color:var(--ink)}.like.on{color:#e0245e}
+.cmt-ico{font-size:20px;cursor:pointer;line-height:1}
+.likers summary{cursor:pointer;font-weight:650;list-style:none}.likers summary::-webkit-details-marker{display:none}
+.likers ul{list-style:none;margin:6px 0;padding:0}.likers li{display:flex;align-items:center;gap:6px;margin:4px 0}
+.social .t{color:var(--muted);font-size:11px;font-weight:400}
+.cmt{display:flex;gap:7px;margin:7px 0;line-height:1.5}.cb{word-break:break-word}.cb .ct{white-space:pre-wrap}.likers{margin-bottom:6px}
+.cmt-form{display:flex;gap:6px;margin-top:8px}.cmt-form .lg-input{padding:8px 10px}.cmt-form .lg-b{flex:none;min-height:0;padding:8px 12px}
 .visit-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:0 0 14px;padding:0 4px}
 .feed-empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
 .fab{position:fixed;right:max(16px,calc(50% - 680px));bottom:calc(20px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:28px;line-height:1;box-shadow:0 6px 20px #263e3655;z-index:6}
@@ -122,8 +131,8 @@ const md = d => d ? `${+d.slice(5, 7)}/${+d.slice(8, 10)}` : '';
 const when = ts => new Date(ts).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' })
   .replace(/^(\d+)\. (\d+)\. /, '$1/$2 '); // 10. 30. 오후 8:05 → 10/30 오후 8:05
 const av = (role, cls = '') => `<span class="av ${cls}" data-r="${esc(role)}" aria-hidden="true">${FACE[role] ?? '🙂'}</span>`;
-let me, members = [], visits = [], reviews = [], photos = {}, plan = [], signup = false, channel = null, cur = null;
-let stops = []; // 계획표 칸들 { key, day, label } — 추가 장소를 끼워 넣을 자리
+let me, members = [], visits = [], reviews = [], comments = [], likes = [], photos = {}, plan = [], signup = false, channel = null, cur = null;
+let stops = [], openComments = new Set(); // 계획표 칸들 { key, day, label } — 추가 장소를 끼워 넣을 자리
 let tab = 'feed';
 try { tab = localStorage.getItem('jeju-log-tab') || 'feed'; } catch {}
 
@@ -241,23 +250,25 @@ function onSession(_ev, session) {
   $('#auth').hidden = !!me; $('#logout').hidden = !me; $('#tabs').hidden = !me; $('#fab').hidden = !me;
   setTab(tab);
   if (channel) { sb.removeChannel(channel); channel = null; }
-  if (!me) { members = visits = reviews = []; render(); return setMode(false); }
+  if (!me) { members = visits = reviews = comments = likes = []; render(); return setMode(false); }
   load();
   // shortcut: 변경이 오면 전체를 다시 읽음 (가족 4명 규모라 충분), 데이터가 커지면 행 단위 반영으로
   let t; const reload = () => { clearTimeout(t); t = setTimeout(load, 300); };
   channel = sb.channel('family');
-  ['visits', 'reviews', 'members'].forEach(table => channel.on('postgres_changes', { event: '*', schema: 'public', table }, reload));
+  ['visits', 'reviews', 'members', 'comments', 'likes'].forEach(table => channel.on('postgres_changes', { event: '*', schema: 'public', table }, reload));
   channel.subscribe();
 }
 
 // ---------- 데이터 ----------
 async function load() {
-  const [m, v, r] = await Promise.all([
+  const [m, v, r, c, l] = await Promise.all([
     sb.from('members').select('*').order('created_at'),
     sb.from('visits').select('*').order('visited_on').order('created_at'),
     sb.from('reviews').select('*').order('created_at', { ascending: false }),
+    sb.from('comments').select('*').order('created_at'),
+    sb.from('likes').select('*').order('created_at'),
   ]);
-  members = m.data || []; visits = v.data || []; reviews = r.data || [];
+  members = m.data || []; visits = v.data || []; reviews = r.data || []; comments = c.data || []; likes = l.data || [];
   if (me && !members.some(x => x.user_id === me.id)) {
     alert('가족 명단에 없는 계정이에요. 다시 로그인해 주세요.');
     return sb.auth.signOut();
@@ -280,9 +291,13 @@ const longText = (body, lines, prefix = '') => `<div class="clamp" style="--line
   body.split('\n').length > lines || body.length > lines * 38 ? '<button type="button" class="more" data-more="1">더 보기</button>' : ''}`;
 const stars = n => n ? `<span class="st">${'★'.repeat(n)}${'☆'.repeat(5 - n)}</span>` : '';
 
+const counts = r => { // 계획표 탭에선 좋아요·댓글 수만
+  const l = likes.filter(x => x.review_id === r.id).length, c = comments.filter(x => x.review_id === r.id).length;
+  return `${l ? ` <span class="t">♥${l}</span>` : ''}${c ? ` <span class="t">💬${c}</span>` : ''}`;
+};
 function reviewsHtml(visit) { // 계획표 탭: 장소 아래 짧게
   return reviews.filter(r => r.visit_id === visit.id).reverse().map(r => `<div class="rv">${av(roleOf(r.user_id), 'sm')}
-    <div><b>${esc(roleOf(r.user_id))}</b> ${stars(r.rating)}${r.user_id === me?.id ? ` <button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}${r.body ? longText(r.body, 3) : ''}
+    <div><b>${esc(roleOf(r.user_id))}</b> ${stars(r.rating)}${counts(r)}${r.user_id === me?.id ? ` <button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}${r.body ? longText(r.body, 3) : ''}
     ${r.photo_paths.length ? `<div class="thumbs">${r.photo_paths.slice(0, 4).map(p => photos[p] ? `<img src="${esc(photos[p])}" alt="" loading="lazy">` : '').join('')}</div>` : ''}</div></div>`).join('');
 }
 
@@ -295,7 +310,24 @@ function postHtml(r) { // 피드 탭: 인스타 카드
       <span style="margin-left:auto">${r.user_id === me?.id ? `<button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}</span></div>
     ${imgs.length ? `<div class="post-imgs"><div class="track">${imgs.map((p, i) => `<img src="${esc(photos[p])}" alt="${esc(roleOf(r.user_id))}의 사진 ${i + 1}" loading="lazy">`).join('')}</div>${imgs.length > 1 ? `<span class="cnt">${imgs.length}장</span>` : ''}</div>` : ''}
     ${r.rating || r.body ? `<div class="post-b">${stars(r.rating)}${r.body ? longText(r.body, 5, `<b>${esc(roleOf(r.user_id))}</b>`) : ''}</div>` : ''}
+    ${socialHtml(r)}
   </article>`;
+}
+
+function socialHtml(r) { // 좋아요(누가·언제) · 댓글(누가·언제, 본인 수정/지우기, 관리자 지우기)
+  const ls = likes.filter(x => x.review_id === r.id), cs = comments.filter(x => x.review_id === r.id);
+  const liked = ls.some(x => x.user_id === me?.id);
+  const SHOW = 2, hidden = cs.length > SHOW && !openComments.has(r.id);
+  return `<div class="social">
+    <div class="acts"><button type="button" class="like${liked ? ' on' : ''}" data-like="${r.id}" aria-pressed="${liked}" aria-label="좋아요">${liked ? '♥' : '♡'}</button>
+      <label class="cmt-ico" for="c${r.id}" aria-label="댓글 달기">💬</label></div>
+    ${ls.length ? `<details class="likers"><summary>${ls.map(x => esc(roleOf(x.user_id))).join(', ')}님이 좋아해요</summary>
+      <ul>${ls.map(x => `<li>${av(roleOf(x.user_id), 'sm')} ${esc(roleOf(x.user_id))} <span class="t">${when(x.created_at)}</span></li>`).join('')}</ul></details>` : ''}
+    ${hidden ? `<button type="button" class="more" data-all-comments="${r.id}">댓글 ${cs.length}개 모두 보기</button>` : ''}
+    ${(hidden ? cs.slice(-SHOW) : cs).map(x => `<div class="cmt">${av(roleOf(x.user_id), 'sm')}<div class="cb"><b>${esc(roleOf(x.user_id))}</b> <span class="ct">${esc(x.body)}</span><div class="t">${when(x.created_at)}${x.user_id === me?.id ? ` · <button class="lg-x" data-edit-comment="${x.id}">수정</button>` : ''}${
+        x.user_id === me?.id || isAdmin() ? `<button class="lg-x" data-del-comment="${x.id}">지우기</button>` : ''}</div></div></div>`).join('')}
+    <form class="cmt-form" data-comment="${r.id}"><input id="c${r.id}" class="lg-input" maxlength="1000" placeholder="댓글 달기…" autocomplete="off" enterkeyhint="send"><button class="lg-b ghost">게시</button></form>
+  </div>`;
 }
 
 function render() {
@@ -342,7 +374,11 @@ function render() {
     ...visits.filter(v => !reviews.some(r => r.visit_id === v.id)).map(v => ({ at: v.created_at,
       html: `<p class="visit-line">${av(roleOf(v.user_id), 'sm')}<span><b>${esc(roleOf(v.user_id))}</b>가 <button type="button" class="pl" data-goto="${v.id}">📍 ${esc(v.place_name)}</button>에 다녀왔어요 · ${when(v.created_at)}</span></p>` })),
   ].sort((a, b) => b.at.localeCompare(a.at));
+  const typing = Object.fromEntries([...document.querySelectorAll('.cmt-form input')].filter(i => i.value).map(i => [i.id, i.value]));
+  const focused = document.activeElement?.closest?.('.cmt-form') ? document.activeElement.id : null;
   $('#feed').innerHTML = items.length ? items.map(x => x.html).join('') : '<p class="feed-empty">아직 올라온 글이 없어요.<br>오른쪽 아래 ＋ 버튼으로 첫 글을 올려보세요.</p>';
+  Object.entries(typing).forEach(([id, val]) => { const i = document.getElementById(id); if (i) i.value = val; }); // 실시간 갱신에 쓰던 댓글이 날아가지 않게
+  if (focused) document.getElementById(focused)?.focus();
 }
 
 // ---------- 작성 시트 ----------
@@ -512,6 +548,18 @@ function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
 }
 
 $('#fab').onclick = () => openSheet();
+document.addEventListener('submit', async e => { // 댓글 게시
+  const f = e.target.closest('.cmt-form');
+  if (!f) return;
+  e.preventDefault();
+  const input = f.querySelector('input'), body = input.value.trim();
+  if (!body) return;
+  f.querySelector('button').disabled = true;
+  const { error } = await sb.from('comments').insert({ review_id: +f.dataset.comment, user_id: me.id, body });
+  f.querySelector('button').disabled = false;
+  if (error) return alert(error.message);
+  input.value = ''; openComments.add(+f.dataset.comment); load();
+});
 document.addEventListener('click', async e => {
   const d = e.target.closest('button')?.dataset;
   if (!d) return;
@@ -522,6 +570,29 @@ document.addEventListener('click', async e => {
   if (d.more) { e.target.previousElementSibling.classList.add('open'); return e.target.remove(); }
   if (d.goto) return gotoVisit(d.goto);
   if (d.editReview) return openSheet({ editId: d.editReview });
+  if (d.like) {
+    const mineLike = likes.find(x => x.review_id === +d.like && x.user_id === me.id);
+    const { error } = mineLike
+      ? await sb.from('likes').delete().eq('review_id', d.like).eq('user_id', me.id)
+      : await sb.from('likes').insert({ review_id: +d.like, user_id: me.id });
+    if (error) alert(error.message); else load();
+    return;
+  }
+  if (d.allComments) { openComments.add(+d.allComments); return render(); }
+  if (d.editComment) {
+    const c = comments.find(x => x.id === +d.editComment);
+    const body = prompt('댓글 수정', c.body)?.trim(); // shortcut: 브라우저 기본 입력창, 모양을 맞추려면 시트로
+    if (!body || body === c.body) return;
+    const { error } = await sb.from('comments').update({ body }).eq('id', c.id);
+    if (error) alert(error.message); else load();
+    return;
+  }
+  if (d.delComment) {
+    if (!confirm('이 댓글을 지울까요?')) return;
+    const { error } = await sb.from('comments').delete().eq('id', d.delComment);
+    if (error) alert(error.message); else load();
+    return;
+  }
   if (d.delReview) {
     if (!confirm('이 글을 지울까요?')) return;
     const r = reviews.find(x => x.id === +d.delReview);
