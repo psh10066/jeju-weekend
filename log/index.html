@@ -88,6 +88,8 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 .stars label{font-size:28px;color:#d6d0c0;cursor:pointer;line-height:1;padding:2px}
 .stars label.on{color:#d99b38}.stars input:focus-visible+label{outline:2px solid #d99b38}
 .previews{display:flex;gap:6px;overflow-x:auto;margin-top:6px}.previews:empty{display:none}.keep{position:relative;flex:none}
+#sKeep img,#sKeep video{width:88px;height:88px}.keep button{width:28px!important;height:28px!important;font-size:13px!important}
+.keep button.left{top:auto;bottom:2px;right:auto;left:2px}.keep button.right{top:auto;bottom:2px}
 .keep button{position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;border:0;background:#263e36cc;color:#fff;font-size:12px;line-height:1;padding:0}.previews img,.previews video{width:64px;height:64px;object-fit:cover;border-radius:6px;flex:none;background:#000}
 .pick{display:flex;align-items:center;justify-content:center;gap:6px;border:1px dashed var(--line);border-radius:7px;padding:12px;font-size:14px;font-weight:650;background:#fff;cursor:pointer}
 .pick input{position:absolute;width:1px;height:1px;opacity:0}.pick:focus-within{outline:2px solid #d99b38}
@@ -495,10 +497,18 @@ $('#sPlace').onchange = e => {
   showDel(cur.visit);
 };
 function paintKeep() { // 수정 중인 글에 이미 있는 사진·동영상, ✕로 뺀다
-  $('#sKeep').innerHTML = (cur.keep ?? []).map(p => `<span class="keep">${isVideo(p)
-    ? `<video src="${esc(photos[p] ?? '')}#t=0.1" muted playsinline preload="metadata"></video>` : `<img src="${esc(photos[p] ?? '')}" alt="">`}<button type="button" data-unkeep="${esc(p)}" aria-label="이 사진 빼기">✕</button></span>`).join('');
+  $('#sKeep').innerHTML = (cur.keep ?? []).map((p, i) => `<span class="keep">${isVideo(p)
+    ? `<video src="${esc(photos[p] ?? '')}#t=0.1" muted playsinline preload="metadata"></video>` : `<img src="${esc(photos[p] ?? '')}" alt="">`}<button type="button" data-unkeep="${esc(p)}" aria-label="이 사진 빼기">✕</button>${
+    i ? `<button type="button" class="left" data-left="${i}" aria-label="앞으로 옮기기">◀</button>` : ''}${
+    i < cur.keep.length - 1 ? `<button type="button" class="right" data-left="${i + 1}" aria-label="뒤로 옮기기">▶</button>` : ''}</span>`).join('');
 }
-$('#sKeep').onclick = e => { const p = e.target.dataset.unkeep; if (p) { cur.keep = cur.keep.filter(x => x !== p); paintKeep(); } };
+$('#sKeep').onclick = e => {
+  const { unkeep, left } = e.target.dataset;
+  if (unkeep) cur.keep = cur.keep.filter(x => x !== unkeep);
+  else if (left) { const k = cur.keep, i = +left; [k[i - 1], k[i]] = [k[i], k[i - 1]]; } // 첫 장이 피드 대표 사진
+  else return;
+  paintKeep();
+};
 $('#sPhoto').onchange = e => {
   const files = [...e.target.files];
   const room = 10 - (cur.keep?.length ?? 0);
