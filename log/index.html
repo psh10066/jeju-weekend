@@ -125,6 +125,7 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 <label class="lg-field" for="sName">장소 이름</label><input class="lg-input" id="sName" maxlength="100">
 <label class="lg-field" for="sAddr">주소</label><input class="lg-input" id="sAddr">
 </div>
+<div id="sNoteBox" hidden><label class="lg-field" for="sNote">한 줄 코멘트 (선택)</label><input class="lg-input" id="sNote" maxlength="100" placeholder="예: 직장 동료 추천 · 포장해서 숙소에서"></div>
 <div id="sWhenBox" hidden><label class="lg-field" for="sDay">언제 다녀왔나요?</label>
 <div style="display:flex;gap:6px"><input class="lg-input" id="sDay" type="date"><select class="lg-input" id="sTime" aria-label="시간 (30분 단위)" style="flex:none;width:7.5em"></select></div></div>
 <div id="sPosBox" hidden><label class="lg-field" for="sPos">계획표 어디에 넣을까요?</label><select class="lg-input" id="sPos"></select></div>
@@ -168,8 +169,24 @@ function paintStars() {
 }
 
 // ---------- 계획표 가져와서 꾸미기 ----------
+// 원래 계획표(../index.html)는 그대로 두고, 가족 기록에서만 바뀐 일정을 덧씌운다. 원본 문구가 바뀌면 그 항목은 건너뜀
+const PLAN_EDITS = [
+  ["<p><b>송당</b> → 성읍 → 표선",
+   "<p><b>송당</b> → 공항(아빠 픽업) → 성읍 → 표선"],
+  ["<article class=\"stop\"><div class=\"time\">10:00<small>산책 · 차</small></div>",
+   "<article class=\"stop\"><div class=\"time\">10:10<small>픽업</small></div><div class=\"detail\"><h3>아빠 픽업</h3><p>제주공항에 도착하는 아빠를 태우고 바로 성읍으로</p><p class=\"address\"><a class=\"subplace place\" href=\"https://map.naver.com/p/entry/place/11576965\">제주공항</a> · 블루보틀에서 약 50분 · 09:20쯤 출발, 커피는 포장</p></div></article><article class=\"stop\"><div class=\"time\">11:10<small>산책 · 차</small></div>"],
+  ["<p>동굴 안에서 바깥을 향해 사진 남기기<br>",
+   "<p>아빠와 합류해서 동굴 안에서 바깥을 향해 사진 남기기<br>"],
+  ["<div class=\"time\">12:00<small>점심</small></div><div class=\"detail\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1013614405\">",
+   "<div class=\"time\">12:40<small>점심</small></div><div class=\"detail\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1013614405\">"],
+  ["<div class=\"time\">저녁<small>예약 시간</small></div>",
+   "<div class=\"time\">저녁<small>택 1</small></div>"],
+  ["<span class=\"tag warn\">미리 예약</span></div></article>",
+   "<span class=\"tag warn\">미리 예약</span><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1131070854\">이재모피자 제주점</a> <span class=\"tag\">직장 동료 추천</span></h3><p>첫날 저녁을 피자로</p><p class=\"address\">제주시 간월동로 6 · 제주시내라 오름에서 약 50분</p><span class=\"tag warn\">토 10:00~21:00 · 20:30 주문 마감 · 일요일 휴무</span></div></div></article>"],
+];
 async function boot() {
-  const doc = new DOMParser().parseFromString(await (await fetch('../index.html', { cache: 'no-cache' })).text(), 'text/html');
+  const html = PLAN_EDITS.reduce((h, [from, to]) => h.replace(from, to), await (await fetch('../index.html', { cache: 'no-cache' })).text());
+  const doc = new DOMParser().parseFromString(html, 'text/html');
   $('#planStyle').textContent = [...doc.querySelectorAll('style')].map(s => s.textContent).join('\n');
   const main = document.importNode(doc.querySelector('main.sheet'), true);
   $('#root').replaceWith(main);
@@ -394,7 +411,7 @@ function render() {
   document.querySelectorAll('.lg-here').forEach(b => { b.hidden = !me; });
   const card = (v, added) => `<article class="stop${added ? ' lg-added' : ''}" data-visit-row="${v.id}"><div class="time">${v.visited_at ? hm(v.visited_at) : ''}<small>${added || !v.visited_at ? '추가' : md(ymd(v.visited_at))} · ${esc(roleOf(v.user_id))}</small></div><div class="detail">
     <h3>${v.place_url ? `<a class="place" href="${esc(v.place_url)}" target="_blank" rel="noopener noreferrer">${esc(v.place_name)}</a>` : esc(v.place_name)}${added ? ' <span class="tag">계획에 없던 곳</span>' : ''}</h3>
-    ${v.address ? `<p class="address">${esc(v.address)}</p>` : ''}
+    ${v.note ? `<p>${esc(v.note)}</p>` : ''}${v.address ? `<p class="address">${esc(v.address)}</p>` : ''}
     ${v.visited_at ? `<button type="button" class="lg-go done" data-open-visit="${v.id}">✓ ${when(v.visited_at)} 다녀옴 · ${myReview(v) ? '내 리뷰 수정' : '리뷰 쓰기'}</button>${cancelBtn(v)}`
       : `<button type="button" class="lg-go" data-open-visit="${v.id}">다녀왔어요</button>`}${hasPosts(v) ? '' : `<button type="button" class="lg-x" data-del-visit="${v.id}">장소 삭제</button>`}${reviewsHtml(v)}</div></article>`;
   const loose = extra.filter(v => {
@@ -444,6 +461,8 @@ function openSheet({ planUrl = null, visitId = null, newPlace = false, after = n
   showDel(visit);
   showWhen(visit, fixed);
   showPos(visit, newPlace, after);
+  $('#sNoteBox').hidden = !(newPlace || cur.move); // 추가한 장소의 코멘트는 추가한 사람이 쓰고 고친다
+  $('#sNote').value = cur.move?.note ?? '';
   if (after) $('#sMeta').textContent = `${stops.find(s => s.key === after)?.label ?? ''} 다음에 들어가요`;
   $('#sSave').textContent = newPlace ? '장소 추가' : fixed && !visit?.visited_at ? '다녀왔어요 · 올리기' : '올리기';
   $('#sErr').textContent = ''; $('#sSave').disabled = false;
@@ -461,6 +480,7 @@ function openEdit(r) { // 본인 글 수정: 글·별점·사진(빼기·더하�
   $('#sStarBox').hidden = !v;
   showWhen(v, false);
   showPos(v, false);
+  $('#sNoteBox').hidden = true;
   if (r.rating) $(`#st${r.rating}`).checked = true;
   paintStars();
   $('#sBody').value = r.body ?? '';
@@ -607,7 +627,7 @@ async function ensureVisit() { // 장소가 정해졌으면 방문 기록(가족
 }
 
 async function addPlace() { // 계획 밖 장소는 추가만 (다녀왔어요·리뷰는 계획표 장소처럼 따로)
-  const row = { place_name: $('#sName').value.trim(), place_url: $('#sLink').value.trim() || null, address: $('#sAddr').value.trim() || null, after_ref: $('#sPos').value || null };
+  const row = { place_name: $('#sName').value.trim(), place_url: $('#sLink').value.trim() || null, address: $('#sAddr').value.trim() || null, note: $('#sNote').value.trim() || null, after_ref: $('#sPos').value || null };
   if (!row.place_name) throw new Error('장소 이름을 넣어주세요');
   if (row.place_url && !/^https:\/\//.test(row.place_url)) throw new Error('https:// 로 시작하는 링크만 넣을 수 있어요');
   if (row.place_url && (visits.some(v => v.place_url === row.place_url) || plan.some(p => p.url === row.place_url))) throw new Error('이미 계획표에 있는 곳이에요');
@@ -629,6 +649,11 @@ $('#sheetForm').onsubmit = async e => {
       const { error } = await sb.from('visits').update({ visited_at: whenISO(), visited_on: $('#sDay').value }).eq('id', target.id);
       if (error) throw error;
     }
+    const note = $('#sNote').value.trim() || null, noted = cur.move && !$('#sNoteBox').hidden && note !== (cur.move.note ?? null);
+    if (noted) {
+      const { error } = await sb.from('visits').update({ note }).eq('id', cur.move.id);
+      if (error) throw error;
+    }
     const body = $('#sBody').value.trim() || null, files = cur.media?.filter(x => x instanceof File) ?? [];
     const upload = async () => { const up = await uploadMedia(files); return { up, paths: cur.media.map(x => x instanceof File ? up[files.indexOf(x)] : x) }; };
     const rating = $('#sStarBox').hidden ? null : +($('#sStars input:checked')?.value || 0) || null;
@@ -642,7 +667,7 @@ $('#sheetForm').onsubmit = async e => {
       $('#sheet').close(); return load();
     }
     const hasPost = body || rating || files.length;
-    if (!hasPost && (moved || marking)) { $('#sheet').close(); return load(); }
+    if (!hasPost && (moved || marking || noted)) { $('#sheet').close(); return load(); }
     if (!hasPost && (cur.visit || $('#sPlace').value === '' && !cur.planUrl)) throw new Error('글이나 사진·동영상을 넣어주세요');
     const visit = await ensureVisit();
     if (hasPost && myReview(visit)) throw new Error('이미 이 장소에 리뷰를 남겼어요. ‘내 리뷰 수정’으로 고쳐주세요');
@@ -678,31 +703,21 @@ async function unvisit(v) {
 }
 $('#sDel').onclick = async () => { if (cur.visit && await unvisit(cur.visit)) $('#sheet').close(); };
 
-// 사진·동영상 저장: 폰에선 공유 창(→ '이미지 저장'으로 앨범에), 안 되면 파일로 내려받기
-const saved = {}; // review id → File[] (공유 창은 누른 직후에만 열려서, 받느라 늦으면 한 번 더 누를 때 바로 연다)
+// 사진·동영상 저장: 공유 창 없이 바로 파일로 내려받기 (안드로이드는 갤러리 'Download', 아이폰은 '파일' 앱 다운로드 폴더)
 async function saveMedia(id, btn) {
   const r = reviews.find(x => x.id === +id);
   if (!r) return;
   const label = btn.innerHTML;
-  if (!saved[id]) {
-    btn.disabled = true; btn.lastChild.textContent = '받는 중…';
-    try {
-      saved[id] = await Promise.all(r.photo_paths.map(async (p, i) => {
-        const blob = await (await fetch(photos[p])).blob();
-        return new File([blob], `제주-${roleOf(r.user_id)}-${r.id}-${i + 1}.${p.split('.').pop()}`, { type: blob.type });
-      }));
-    } catch { btn.disabled = false; btn.innerHTML = label; return alert('받지 못했어요. 새로고침 후 다시 눌러주세요.'); }
-    btn.disabled = false; btn.innerHTML = label;
-  }
-  const files = saved[id];
-  if (navigator.canShare?.({ files })) {
-    try { return await navigator.share({ files }); }
-    catch (x) {
-      if (x.name === 'AbortError') return; // 공유 창을 닫음
-      if (x.name === 'NotAllowedError') { btn.lastChild.textContent = '준비됨 · 한 번 더 누르기'; return; }
+  btn.disabled = true; btn.lastChild.textContent = '받는 중…';
+  try {
+    for (const [i, p] of r.photo_paths.entries()) { // 한꺼번에 받으면 브라우저가 막아서 하나씩
+      const blob = await (await fetch(photos[p])).blob();
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: `제주-${roleOf(r.user_id)}-${r.id}-${i + 1}.${p.split('.').pop()}` });
+      a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 60e3);
+      await new Promise(res => setTimeout(res, 400));
     }
-  }
-  files.forEach(f => { const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(f), download: f.name }); a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 60e3); });
+  } catch { alert('받지 못했어요. 새로고침 후 다시 눌러주세요.'); }
+  btn.disabled = false; btn.innerHTML = label;
 }
 
 function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
