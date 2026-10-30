@@ -65,6 +65,7 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .likers ul{list-style:none;margin:6px 0;padding:0}.likers li{display:flex;align-items:center;gap:6px;margin:4px 0}
 .social .t{color:var(--muted);font-size:11px;font-weight:400}
 .cmt{display:flex;gap:7px;margin:7px 0;line-height:1.5}.cb{word-break:break-word}.cb .ct{white-space:pre-wrap}.likers{margin-bottom:6px}
+.cmt-edit textarea.lg-input{min-height:64px}
 .cmt-form{display:flex;gap:6px;margin-top:8px}.cmt-form .lg-input{padding:8px 10px}.cmt-form .lg-b{flex:none;min-height:0;padding:8px 12px}
 .visit-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:0 0 14px;padding:0 4px}
 .feed-empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
@@ -132,7 +133,7 @@ const when = ts => new Date(ts).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul'
   .replace(/^(\d+)\. (\d+)\. /, '$1/$2 '); // 10. 30. 오후 8:05 → 10/30 오후 8:05
 const av = (role, cls = '') => `<span class="av ${cls}" data-r="${esc(role)}" aria-hidden="true">${FACE[role] ?? '🙂'}</span>`;
 let me, members = [], visits = [], reviews = [], comments = [], likes = [], photos = {}, plan = [], signup = false, channel = null, cur = null;
-let stops = [], openComments = new Set(); // 계획표 칸들 { key, day, label } — 추가 장소를 끼워 넣을 자리
+let stops = [], openComments = new Set(), editingComment = null; // 댓글은 그 자리에서 고친다 // 계획표 칸들 { key, day, label } — 추가 장소를 끼워 넣을 자리
 let tab = 'feed';
 try { tab = localStorage.getItem('jeju-log-tab') || 'feed'; } catch {}
 
@@ -324,7 +325,9 @@ function socialHtml(r) { // 좋아요(누가·언제) · 댓글(누가·언제, 
     ${ls.length ? `<details class="likers"><summary>${ls.map(x => esc(roleOf(x.user_id))).join(', ')}님이 좋아해요</summary>
       <ul>${ls.map(x => `<li>${av(roleOf(x.user_id), 'sm')} ${esc(roleOf(x.user_id))} <span class="t">${when(x.created_at)}</span></li>`).join('')}</ul></details>` : ''}
     ${hidden ? `<button type="button" class="more" data-all-comments="${r.id}">댓글 ${cs.length}개 모두 보기</button>` : ''}
-    ${(hidden ? cs.slice(-SHOW) : cs).map(x => `<div class="cmt">${av(roleOf(x.user_id), 'sm')}<div class="cb"><b>${esc(roleOf(x.user_id))}</b> <span class="ct">${esc(x.body)}</span><div class="t">${when(x.created_at)}${x.user_id === me?.id ? ` · <button class="lg-x" data-edit-comment="${x.id}">수정</button>` : ''}${
+    ${(hidden ? cs.slice(-SHOW) : cs).map(x => x.id === editingComment ? `<form class="cmt cmt-edit" data-cid="${x.id}">${av(roleOf(x.user_id), 'sm')}<div class="cb" style="flex:1">
+      <textarea id="ce${x.id}" class="lg-input" maxlength="1000" rows="2">${esc(x.body)}</textarea>
+      <div class="lg-btns" style="margin-top:6px"><button type="button" class="lg-b ghost" data-cancel-edit="1">취소</button><button class="lg-b">저장</button></div></div></form>` : `<div class="cmt">${av(roleOf(x.user_id), 'sm')}<div class="cb"><b>${esc(roleOf(x.user_id))}</b> <span class="ct">${esc(x.body)}</span><div class="t">${when(x.created_at)}${x.user_id === me?.id ? ` · <button class="lg-x" data-edit-comment="${x.id}">수정</button>` : ''}${
         x.user_id === me?.id || isAdmin() ? `<button class="lg-x" data-del-comment="${x.id}">지우기</button>` : ''}</div></div></div>`).join('')}
     <form class="cmt-form" data-comment="${r.id}"><input id="c${r.id}" class="lg-input" maxlength="1000" placeholder="댓글 달기…" autocomplete="off" enterkeyhint="send"><button class="lg-b ghost">게시</button></form>
   </div>`;
@@ -374,8 +377,8 @@ function render() {
     ...visits.filter(v => !reviews.some(r => r.visit_id === v.id)).map(v => ({ at: v.created_at,
       html: `<p class="visit-line">${av(roleOf(v.user_id), 'sm')}<span><b>${esc(roleOf(v.user_id))}</b>가 <button type="button" class="pl" data-goto="${v.id}">📍 ${esc(v.place_name)}</button>에 다녀왔어요 · ${when(v.created_at)}</span></p>` })),
   ].sort((a, b) => b.at.localeCompare(a.at));
-  const typing = Object.fromEntries([...document.querySelectorAll('.cmt-form input')].filter(i => i.value).map(i => [i.id, i.value]));
-  const focused = document.activeElement?.closest?.('.cmt-form') ? document.activeElement.id : null;
+  const typing = Object.fromEntries([...document.querySelectorAll('.cmt-form input, .cmt-edit textarea')].map(i => [i.id, i.value]));
+  const focused = document.activeElement?.closest?.('.cmt-form, .cmt-edit') ? document.activeElement.id : null;
   $('#feed').innerHTML = items.length ? items.map(x => x.html).join('') : '<p class="feed-empty">아직 올라온 글이 없어요.<br>오른쪽 아래 ＋ 버튼으로 첫 글을 올려보세요.</p>';
   Object.entries(typing).forEach(([id, val]) => { const i = document.getElementById(id); if (i) i.value = val; }); // 실시간 갱신에 쓰던 댓글이 날아가지 않게
   if (focused) document.getElementById(focused)?.focus();
@@ -548,6 +551,16 @@ function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
 }
 
 $('#fab').onclick = () => openSheet();
+document.addEventListener('submit', async e => { // 댓글 수정 저장
+  const f = e.target.closest('.cmt-edit');
+  if (!f) return;
+  e.preventDefault();
+  const body = f.querySelector('textarea').value.trim();
+  if (!body) return alert('댓글을 비우려면 ‘지우기’를 눌러주세요');
+  const { error } = await sb.from('comments').update({ body }).eq('id', f.dataset.cid);
+  if (error) return alert(error.message);
+  editingComment = null; load();
+});
 document.addEventListener('submit', async e => { // 댓글 게시
   const f = e.target.closest('.cmt-form');
   if (!f) return;
@@ -580,13 +593,14 @@ document.addEventListener('click', async e => {
   }
   if (d.allComments) { openComments.add(+d.allComments); return render(); }
   if (d.editComment) {
-    const c = comments.find(x => x.id === +d.editComment);
-    const body = prompt('댓글 수정', c.body)?.trim(); // shortcut: 브라우저 기본 입력창, 모양을 맞추려면 시트로
-    if (!body || body === c.body) return;
-    const { error } = await sb.from('comments').update({ body }).eq('id', c.id);
-    if (error) alert(error.message); else load();
+    editingComment = +d.editComment;
+    openComments.add(comments.find(x => x.id === editingComment)?.review_id); // 접혀 있던 댓글이어도 보이게
+    render();
+    const ta = document.getElementById(`ce${editingComment}`);
+    ta?.focus(); ta?.setSelectionRange(ta.value.length, ta.value.length);
     return;
   }
+  if (d.cancelEdit) { editingComment = null; return render(); }
   if (d.delComment) {
     if (!confirm('이 댓글을 지울까요?')) return;
     const { error } = await sb.from('comments').delete().eq('id', d.delComment);
