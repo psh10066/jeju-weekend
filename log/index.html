@@ -81,8 +81,8 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 body.feed .overview,body.feed .mobile-nav,body.feed .days,body.feed .checkbar,body.feed .footer{display:none}
 body:not(.feed) #feed{display:none}
 /* 작성 시트 */
-dialog#sheet{border:0;border-radius:14px;padding:18px;width:min(480px,calc(100% - 32px));max-height:88vh;background:var(--paper);color:var(--ink);box-shadow:0 10px 50px #0004}
-dialog#sheet::backdrop{background:#263e3666}
+dialog#sheet,dialog#mini{border:0;border-radius:14px;padding:18px;width:min(480px,calc(100% - 32px));max-height:88vh;background:var(--paper);color:var(--ink);box-shadow:0 10px 50px #0004}
+dialog#sheet::backdrop,dialog#mini::backdrop{background:#263e3666}
 dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12px;color:var(--muted);margin:2px 0 0}
 .stars{display:flex;gap:2px}.stars input{position:absolute;opacity:0;pointer-events:none}
 .stars label{font-size:28px;color:#d6d0c0;cursor:pointer;line-height:1;padding:2px}
@@ -97,7 +97,7 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 .mobile-nav a.lg-nav{color:#a57a2c}
 [hidden]{display:none!important}
 @media(max-width:700px){
-  dialog#sheet{width:100%;max-width:100%;margin:auto 0 0;border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:92vh}
+  dialog#sheet,dialog#mini{width:100%;max-width:100%;margin:auto 0 0;border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:92vh}
   .lg-go{font-size:12px;padding:7px 12px;min-height:34px}.lg-here{font-size:12px;padding:10px 0 2px}
   .rv{font-size:13px}.rv .thumbs img{width:56px;height:56px}
   .famlog .sum{font-size:14px}.fam .p{font-size:12px}.fam .p small{font-size:10px}
@@ -137,6 +137,11 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 <div class="lg-btns" id="sDelBox" hidden><button type="button" class="lg-b danger" id="sDel"></button></div>
 </form>
 </dialog>
+
+<dialog id="mini"><form id="miniForm">
+<h3 id="mTitle"></h3><div id="mBody"></div><p class="lg-err" id="mErr"></p>
+<div class="lg-btns"><button type="button" class="lg-b ghost" id="mClose">닫기</button><button class="lg-b" id="mOk"></button></div>
+</form></dialog>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script>
@@ -370,7 +375,8 @@ function render() {
     ? `계획 ${plan.length}곳 중 ${planDone}곳 다녀옴 <span>· 계획 밖 ${extraDone}곳 · 글 ${reviews.length}개</span>`
     : '<span>로그인하면 가족이 남긴 기록이 이 계획표 위에 함께 보여요.</span>';
   $('#fam').innerHTML = members.map(m => `<div class="p">${av(m.role, 'big')}<b>${esc(m.role)}${m.user_id === me?.id ? ' (나)' : ''}</b><small>${esc(m.email)}</small>${
-    m.email === ADMIN ? '<small>관리자</small>' : ''}${isAdmin() && m.user_id !== me.id ? `<button class="lg-x" data-remove="${m.user_id}">탈퇴시키기</button>` : ''}</div>`).join('');
+    m.email === ADMIN ? '<small>관리자</small>' : ''}${isAdmin() && m.user_id !== me.id ? `<button class="lg-x" data-reset-pw="${m.user_id}">비밀번호 초기화</button><button class="lg-x" data-remove="${m.user_id}">탈퇴시키기</button>` : ''}${
+    m.user_id === me?.id ? '<button class="lg-x" data-my-pw="1">비밀번호 바꾸기</button><button class="lg-x" data-logout="1">로그아웃</button>' : ''}</div>`).join('');
 
   document.querySelectorAll('.logrow').forEach(row => {
     if (!me) { row.innerHTML = ''; return; }
@@ -708,6 +714,36 @@ function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
 }
 
 $('#fab').onclick = () => openSheet();
+
+// 작은 창: 내 비밀번호 바꾸기 · (관리자) 임시 비밀번호 보여주기
+function mini(title, body, ok, onOk) {
+  $('#mTitle').textContent = title; $('#mBody').innerHTML = body; $('#mOk').textContent = ok; $('#mErr').textContent = '';
+  $('#miniForm').onsubmit = async e => { e.preventDefault(); $('#mOk').disabled = true; try { await onOk(); } catch (x) { $('#mErr').textContent = x.message; } $('#mOk').disabled = false; };
+  $('#mini').showModal();
+}
+$('#mClose').onclick = () => $('#mini').close();
+function changeMyPassword() {
+  mini('비밀번호 바꾸기', `<label class="lg-field" for="pw1">새 비밀번호 (6자 이상)</label><input class="lg-input" id="pw1" type="password" minlength="6" autocomplete="new-password" required>
+    <label class="lg-field" for="pw2">한 번 더</label><input class="lg-input" id="pw2" type="password" minlength="6" autocomplete="new-password" required>`, '바꾸기', async () => {
+    if ($('#pw1').value !== $('#pw2').value) throw new Error('두 비밀번호가 달라요');
+    const { error } = await sb.auth.updateUser({ password: $('#pw1').value });
+    if (error) throw new Error(/different from the old/.test(error.message) ? '지금 비밀번호와 다른 걸로 정해주세요' : error.message);
+    $('#mBody').innerHTML = '<p>바꿨어요. 다음 로그인부터 새 비밀번호를 쓰세요.</p>'; $('#mOk').hidden = true;
+  });
+  $('#mOk').hidden = false;
+}
+async function resetPassword(id) {
+  const m = who(id);
+  if (!confirm(`${m.role}(${m.email}) 비밀번호를 임시 비밀번호로 바꿀까요? 그 사람의 기존 로그인은 모두 풀려요.`)) return;
+  const { data, error } = await sb.rpc('reset_password', { target: id });
+  if (error) return alert(error.message);
+  mini(`${m.role} 임시 비밀번호`, `<p class="meta">${esc(m.email)}로 이 비밀번호를 써서 로그인한 뒤 ‘비밀번호 바꾸기’로 바꾸라고 전해주세요.</p>
+    <input class="lg-input" id="tmpPw" readonly value="${esc(data)}" style="font-size:22px;letter-spacing:2px;text-align:center;margin-top:10px">`, '복사', async () => {
+    await navigator.clipboard.writeText(data).catch(() => { $('#tmpPw').select(); document.execCommand('copy'); });
+    $('#mOk').textContent = '복사했어요';
+  });
+  $('#mOk').hidden = false;
+}
 document.addEventListener('scroll', e => { // 사진 넘기면 1/4 → 2/4
   const t = e.target.closest?.('[data-track]'), cnt = t?.nextElementSibling;
   if (cnt) cnt.textContent = `${Math.round(t.scrollLeft / t.clientWidth) + 1}/${t.children.length}`;
@@ -743,6 +779,9 @@ document.addEventListener('click', async e => {
   if (d.here) return openSheet({ newPlace: true, after: d.here });
   if (d.more) { e.target.previousElementSibling.classList.add('open'); return e.target.remove(); }
   if (d.goto) return gotoVisit(d.goto);
+  if (d.myPw) return changeMyPassword();
+  if (d.logout) return confirm('로그아웃할까요?') && sb.auth.signOut();
+  if (d.resetPw) return resetPassword(d.resetPw);
   if (d.save) return saveMedia(d.save, e.target.closest('button'));
   if (d.cancelVisit) return unvisit(visits.find(x => x.id === +d.cancelVisit));
   if (d.delVisit) return deleteVisit(visits.find(x => x.id === +d.delVisit));
