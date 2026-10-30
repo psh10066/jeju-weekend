@@ -182,7 +182,7 @@ const PLAN_EDITS = [
   ["<div class=\"time\">저녁<small>예약 시간</small></div>",
    "<div class=\"time\">저녁<small>택 1</small></div>"],
   ["<span class=\"tag warn\">미리 예약</span></div></article>",
-   "<span class=\"tag warn\">미리 예약</span><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1131070854\">이재모피자 제주점</a> <span class=\"tag\">직장 동료 추천</span></h3><p>첫날 저녁을 피자로</p><p class=\"address\">제주시 간월동로 6 · 제주시내라 오름에서 약 50분</p><span class=\"tag warn\">토 10:00~21:00 · 20:30 주문 마감 · 일요일 휴무</span></div></div></article>"],
+   "<span class=\"tag warn\">미리 예약</span><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1131070854\">이재모피자 제주점</a> <span class=\"tag\">직장 동료 추천</span></h3><p>첫날 저녁을 피자로</p><p class=\"address\">제주시 간월동로 6 · 제주시내라 오름에서 약 50분</p><span class=\"tag warn\">토 10:00~21:00 · 20:30 주문 마감 · 일요일 휴무</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1177301296\">고집돌우럭 제주함덕점</a></h3><p>우럭조림 · 옥돔구이 등 제주 향토 음식</p><p class=\"address\">조천읍 신북로 491-9 2층 · 함덕, 아카이브와 가까움</p><span class=\"tag\">매일 10:00~21:30 · 15~17시 브레이크</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/16968502\">중앙통닭</a></h3><p>마늘통닭으로 유명한 서귀포 통닭집</p><p class=\"address\">서귀포시 중앙로48번길 14-1 · 서귀포 시내라 오름에서 약 1시간</p><span class=\"tag\">매일 09:30~21:00</span></div></div></article>"],
 ];
 async function boot() {
   const html = PLAN_EDITS.reduce((h, [from, to]) => h.replace(from, to), await (await fetch('../index.html', { cache: 'no-cache' })).text());
