@@ -336,9 +336,9 @@ function postHtml(r) { // 피드 탭: 인스타 카드
     <div class="post-h">${av(roleOf(r.user_id))}<div><div class="n">${esc(roleOf(r.user_id))} <span class="t">· ${when(r.created_at)}</span></div>
       ${v ? `<button type="button" class="pl" data-goto="${v.id}">📍 ${esc(v.place_name)}</button>` : ''}</div>
       <span style="margin-left:auto">${r.user_id === me?.id ? `<button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}</span></div>
-    ${imgs.length ? `<div class="post-imgs"><div class="track">${imgs.map((p, i) => isVideo(p)
+    ${imgs.length ? `<div class="post-imgs"><div class="track" data-track="${r.id}">${imgs.map((p, i) => isVideo(p)
       ? `<video src="${esc(photos[p])}#t=0.1" controls playsinline preload="metadata"></video>`
-      : `<img src="${esc(photos[p])}" alt="${esc(roleOf(r.user_id))}의 사진 ${i + 1}" loading="lazy">`).join('')}</div>${imgs.length > 1 ? `<span class="cnt">${imgs.length}개</span>` : ''}</div>` : ''}
+      : `<img src="${esc(photos[p])}" alt="${esc(roleOf(r.user_id))}의 사진 ${i + 1}" loading="lazy">`).join('')}</div>${imgs.length > 1 ? `<span class="cnt">1/${imgs.length}</span>` : ''}</div>` : ''}
     ${r.rating || r.body ? `<div class="post-b">${stars(r.rating)}${r.body ? longText(r.body, 5, `<b>${esc(roleOf(r.user_id))}</b>`) : ''}</div>` : ''}
     ${socialHtml(r)}
   </article>`;
@@ -410,9 +410,11 @@ function render() {
   ].sort((a, b) => b.at.localeCompare(a.at));
   const typing = Object.fromEntries([...document.querySelectorAll('.cmt-form input, .cmt-edit textarea')].map(i => [i.id, i.value]));
   const focused = document.activeElement?.closest?.('.cmt-form, .cmt-edit') ? document.activeElement.id : null;
+  const at = Object.fromEntries([...document.querySelectorAll('[data-track]')].map(t => [t.dataset.track, t.scrollLeft])); // 넘겨 보던 사진 자리 유지
   $('#feed').innerHTML = items.length ? items.map(x => x.html).join('') : '<p class="feed-empty">아직 올라온 글이 없어요.<br>오른쪽 아래 ＋ 버튼으로 첫 글을 올려보세요.</p>';
   Object.entries(typing).forEach(([id, val]) => { const i = document.getElementById(id); if (i) i.value = val; }); // 실시간 갱신에 쓰던 댓글이 날아가지 않게
   if (focused) document.getElementById(focused)?.focus();
+  document.querySelectorAll('[data-track]').forEach(t => { if (at[t.dataset.track]) t.scrollLeft = at[t.dataset.track]; });
 }
 
 // ---------- 작성 시트 ----------
@@ -706,6 +708,10 @@ function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
 }
 
 $('#fab').onclick = () => openSheet();
+document.addEventListener('scroll', e => { // 사진 넘기면 1/4 → 2/4
+  const t = e.target.closest?.('[data-track]'), cnt = t?.nextElementSibling;
+  if (cnt) cnt.textContent = `${Math.round(t.scrollLeft / t.clientWidth) + 1}/${t.children.length}`;
+}, true);
 document.addEventListener('submit', async e => { // 댓글 수정 저장
   const f = e.target.closest('.cmt-edit');
   if (!f) return;
