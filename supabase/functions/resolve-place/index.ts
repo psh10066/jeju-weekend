@@ -11,7 +11,7 @@ const json = (body: unknown, status = 200) =>
 
 function placeId(url: string): string | null {
   const m = url.match(/\/(?:place|restaurant|cafe|hairshop|hospital|accommodation|attraction)\/(\d{5,})/) ??
-    url.match(/[?&](?:id|placeId)=(\d{5,})/);
+    url.match(/[?&](?:id|placeId|pinId)=(\d{5,})/); // 앱 공유 링크는 pinId
   return m?.[1] ?? null;
 }
 

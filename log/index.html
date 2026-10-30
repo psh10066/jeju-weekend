@@ -105,8 +105,8 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 <select class="lg-input" id="sPlace"></select>
 </div>
 <div id="sNew" hidden>
-<label class="lg-field" for="sLink">네이버 지도 링크</label>
-<div style="display:flex;gap:6px"><input class="lg-input" id="sLink" type="url" inputmode="url" placeholder="https://naver.me/..."><button type="button" class="lg-b ghost" id="sResolve" style="flex:none">불러오기</button></div>
+<label class="lg-field" for="sLink">네이버 지도 공유 내용 또는 링크</label>
+<div style="display:flex;gap:6px;align-items:flex-start"><textarea class="lg-input" id="sLink" rows="2" style="min-height:0" placeholder="네이버 지도 → 공유 → 복사한 내용을 그대로 붙여넣기"></textarea><button type="button" class="lg-b ghost" id="sResolve" style="flex:none">불러오기</button></div>
 <label class="lg-field" for="sName">장소 이름</label><input class="lg-input" id="sName" maxlength="100">
 <label class="lg-field" for="sAddr">주소</label><input class="lg-input" id="sAddr">
 </div>
@@ -454,20 +454,35 @@ const grow = () => { const b = $('#sBody'); b.style.height = 'auto'; b.style.hei
 $('#sBody').addEventListener('input', grow);
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.close(); }); // 바깥 누르면 닫기
 
+// 네이버 지도 앱 '공유 → 복사' 본문: [네이버지도] / 이름 / 주소 / 링크. 링크만 넣어도 된다
+function parseShare(text) {
+  const url = text.match(/https?:\/\/\S+/)?.[0] ?? '';
+  const [name = '', address = ''] = text.split('\n').map(s => s.trim()).filter(s => s && !/^\[.*\]$/.test(s) && !/^https?:\/\//.test(s));
+  return { url, name, address };
+}
+const trimName = (addr, name) => addr && name && addr.endsWith(' ' + name) ? addr.slice(0, -name.length - 1) : addr; // 주소 끝에 붙는 상호 떼기
+$('#sLink').addEventListener('paste', () => setTimeout(() => $('#sResolve').click())); // 붙여넣으면 바로 불러오기
+
 $('#sResolve').onclick = async () => {
-  const url = $('#sLink').value.trim();
-  if (!url) return;
-  $('#sResolve').disabled = true; $('#sErr').textContent = '';
-  const { data, error } = await sb.functions.invoke('resolve-place', { body: { url } });
+  const share = parseShare($('#sLink').value);
+  if (!share.url && !share.name) return;
+  $('#sErr').textContent = '';
+  if (share.name) $('#sName').value = share.name; // 링크 해석이 실패해도 붙여넣은 내용으로 저장되게 먼저 채운다
+  if (share.address) $('#sAddr').value = trimName(share.address, share.name);
+  $('#sLink').value = share.url;
+  if (!share.url) return;
+  $('#sResolve').disabled = true;
+  const { data, error } = await sb.functions.invoke('resolve-place', { body: { url: share.url } });
   $('#sResolve').disabled = false;
   if (error) {
+    if (share.name) { $('#sMeta').textContent = '붙여넣은 이름·주소·링크로 저장돼요'; return; }
     let msg = '불러오지 못했어요. 이름을 직접 입력해 주세요.';
     try { msg = (await error.context.json()).error || msg; } catch {}
     $('#sErr').textContent = msg; return;
   }
   $('#sLink').value = data.url;
-  if (data.name) $('#sName').value = data.name; else $('#sErr').textContent = '이름을 못 가져왔어요. 직접 입력해 주세요.';
-  if (data.address) $('#sAddr').value = data.address;
+  if (data.name) $('#sName').value = data.name; else if (!share.name) $('#sErr').textContent = '이름을 못 가져왔어요. 직접 입력해 주세요.';
+  if (data.address) $('#sAddr').value = trimName(data.address, data.name || share.name);
   const ex = visits.find(x => !x.plan_ref && x.place_url === data.url); // 이미 계획 밖으로 추가된 곳이면 그 장소로
   if (ex) { $('#sPlace').value = `v:${ex.id}`; $('#sNew').hidden = true; $('#sPlace').dispatchEvent(new Event('change')); if (!cur.edit) $('#sMeta').textContent = '이미 추가된 곳이라 그 장소로 올려요'; return; }
   const p = plan.find(x => x.url === data.url || x.name === data.name); // 계획에 있던 곳이면 그 장소로 묶기
