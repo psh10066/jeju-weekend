@@ -105,8 +105,9 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 <select class="lg-input" id="sPlace"></select>
 </div>
 <div id="sNew" hidden>
-<label class="lg-field" for="sLink">네이버 지도 공유 내용 또는 링크</label>
-<div style="display:flex;gap:6px;align-items:flex-start"><textarea class="lg-input" id="sLink" rows="2" style="min-height:0" placeholder="네이버 지도 → 공유 → 복사한 내용을 그대로 붙여넣기"></textarea><button type="button" class="lg-b ghost" id="sResolve" style="flex:none">불러오기</button></div>
+<label class="lg-field" for="sLink">네이버 지도 → 공유 → 복사한 내용을 그대로 붙여넣기 (링크만 넣어도 돼요)</label>
+<textarea class="lg-input" id="sLink" rows="5" style="min-height:0" placeholder="[네이버지도]&#10;이재모피자 제주점&#10;제주 제주시 간월동로 6 이재모피자 제주점&#10;https://naver.me/FmGv7jus"></textarea>
+<button type="button" class="lg-b ghost" id="sResolve" style="width:100%;margin-top:6px">불러오기</button>
 <label class="lg-field" for="sName">장소 이름</label><input class="lg-input" id="sName" maxlength="100">
 <label class="lg-field" for="sAddr">주소</label><input class="lg-input" id="sAddr">
 </div>
