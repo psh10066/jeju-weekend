@@ -63,6 +63,12 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .ic{display:block;width:26px;height:26px;background:currentColor;-webkit-mask:center/contain no-repeat;mask:center/contain no-repeat}
 .ic-heart{-webkit-mask-image:url(icons/heart.svg);mask-image:url(icons/heart.svg)}
 .like.on .ic-heart{-webkit-mask-image:url(icons/heart-fill.svg);mask-image:url(icons/heart-fill.svg)}
+.ic-heart-fill{-webkit-mask-image:url(icons/heart-fill.svg);mask-image:url(icons/heart-fill.svg)}
+.cnt-i{display:inline-flex;align-items:center;gap:2px;margin-left:4px}.cnt-i .ic{width:13px;height:13px}.cnt-i .ic-heart-fill{color:#ed4956}
+/* 안 갔어요: 접고 흐리게, 펼치기로 다시 보기 */
+.lg-skipped{font-size:11px;color:var(--muted);margin-right:4px}
+.lg-skip:not(.lg-open)>.detail>:not(h3):not(.logrow):not(.option):not(.lg-here),.option.lg-skip:not(.lg-open)>:not(h3):not(.logrow){display:none}
+.stop.lg-skip>.time,.stop.lg-skip>.detail>h3,.option.lg-skip>h3{opacity:.45}
 .ic-chat{-webkit-mask-image:url(icons/chat-circle.svg);mask-image:url(icons/chat-circle.svg)}
 .ic-down{-webkit-mask-image:url(icons/download-simple.svg);mask-image:url(icons/download-simple.svg)}
 .save{margin-left:auto;display:flex;align-items:center;gap:4px;border:0;background:none;padding:2px;color:var(--ink);font-size:12px;font-weight:650}.save .ic{width:24px;height:24px}
@@ -182,7 +188,19 @@ const PLAN_EDITS = [
   ["<div class=\"time\">저녁<small>예약 시간</small></div>",
    "<div class=\"time\">저녁<small>택 1</small></div>"],
   ["<span class=\"tag warn\">미리 예약</span></div></article>",
-   "<span class=\"tag warn\">미리 예약</span><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1131070854\">이재모피자 제주점</a> <span class=\"tag\">직장 동료 추천</span></h3><p>첫날 저녁을 피자로</p><p class=\"address\">제주시 간월동로 6 · 제주시내라 오름에서 약 50분</p><span class=\"tag warn\">토 10:00~21:00 · 20:30 주문 마감 · 일요일 휴무</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1177301296\">고집돌우럭 제주함덕점</a></h3><p>우럭조림 · 옥돔구이 등 제주 향토 음식</p><p class=\"address\">조천읍 신북로 491-9 2층 · 함덕, 아카이브와 가까움</p><span class=\"tag\">매일 10:00~21:30 · 15~17시 브레이크</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/16968502\">중앙통닭</a></h3><p>마늘통닭으로 유명한 서귀포 통닭집</p><p class=\"address\">서귀포시 중앙로48번길 14-1 · 서귀포 시내라 오름에서 약 1시간</p><span class=\"tag\">매일 09:30~21:00</span></div></div></article>"],
+   "<span class=\"tag warn\">미리 예약</span><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1131070854\">이재모피자 제주점</a> <span class=\"tag\">직장 동료 추천</span></h3><p>첫날 저녁을 피자로</p><p class=\"address\">제주시 간월동로 6 · 제주시내라 오름에서 약 50분</p><span class=\"tag warn\">토 10:00~21:00 · 20:30 주문 마감 · 일요일 휴무</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1177301296\">고집돌우럭 제주함덕점</a></h3><p>우럭조림 · 옥돔구이 등 제주 향토 음식</p><p class=\"address\">조천읍 신북로 491-9 2층 · 함덕 · 숙소에서 차로 약 25분</p><span class=\"tag\">매일 10:00~21:30 · 15~17시 브레이크</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/16968502\">중앙통닭</a></h3><p>마늘통닭으로 유명한 서귀포 통닭집</p><p class=\"address\">서귀포시 중앙로48번길 14-1 · 서귀포 시내 · 숙소에서 차로 약 45분</p><span class=\"tag\">매일 09:30~21:00</span></div></div></article>"],
+  ["<h3>공간7 체크인</h3><p>짐 풀고 잠깐 쉬기</p><span class=\"tag\">숙소 지도는 주소 확인 후 연결</span>",
+   "<h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1672188534\">공간7</a> 체크인</h3><p>짐 풀고 잠깐 쉬기</p><p class=\"address\">구좌읍 번영로 2133-50 · 송당, 블루보틀 바로 옆</p><span class=\"tag\">체크아웃 월 12:00</span>"],
+  ["<p>포장한 빵은 숙소에서, 커피는 블루보틀에서</p>",
+   "<p>포장한 빵은 숙소에서, 커피는 숙소 바로 옆 블루보틀에서</p>"],
+  ["<article class=\"stop\"><div class=\"time\">09:30<small>산책 택 1</small></div>",
+   "<article class=\"stop\"><div class=\"time\">09:00<small>체크아웃</small></div><div class=\"detail\"><h3>공간7 체크아웃</h3><p>짐을 차에 싣고 나와서 산책 → 점심으로</p><span class=\"tag warn\">12:00까지</span></div></article><article class=\"stop\"><div class=\"time\">09:30<small>산책 택 1</small></div>"],
+  ["<strong>체크아웃 시간 먼저 확인.</strong> 아침 산책 전에 짐을 싣고 출발하면, 숙소로 되돌아오는 이동을 줄일 수 있어요.",
+   "<strong>체크아웃은 12시.</strong> 아침 산책 전에 짐을 싣고 체크아웃하면 숙소로 되돌아오지 않아도 돼요."],
+  ["data-check=\"stay\">공간7 주소 · 체크아웃 시간 확인</label>",
+   "data-check=\"stay\">공간7 체크아웃 12시 전 짐 싣기</label>"],
+  ["공간7의 정확한 위치는 미확인. 송당 출발은 블루보틀 일정에 따른 가정입니다.",
+   "공간7은 송당 블루보틀 바로 옆(구좌읍 번영로 2133-50)."],
 ];
 async function boot() {
   const html = PLAN_EDITS.reduce((h, [from, to]) => h.replace(from, to), await (await fetch('../index.html', { cache: 'no-cache' })).text());
@@ -211,10 +229,12 @@ async function boot() {
   // 계획 장소마다 기록 줄(.logrow)을 그 장소 설명 끝에 단다. 한 칸에 장소가 여럿이면 이름을 붙여 한 줄씩
   main.querySelectorAll('section.day').forEach(sec => {
     const day = sec.querySelector('.en')?.textContent.trim() + ' · ' + sec.querySelector('h2')?.textContent.trim();
+    sec.querySelectorAll('.stop').forEach(st => { st.dataset.key = `${sec.id}|${st.querySelector('.detail h3')?.textContent.replace(/\s+/g, ' ').trim() ?? ''}`; });
+    // 같은 장소라도 칸(시기)이 다르면 다른 기록: ref = 요일|칸 제목|링크
     const addRows = (links, put) => links.forEach(a => {
-      const name = a.textContent.replace(/[↗\s]+$/, '').replace(/\s+/g, ' ').trim();
-      if (!plan.some(p => p.url === a.href)) plan.push({ day, name, url: a.href });
-      put(`<div class="logrow" data-plan="${esc(a.href)}" data-name="${esc(name)}" data-labeled="${links.length > 1 ? 1 : ''}"></div>`);
+      const name = a.textContent.replace(/[↗\s]+$/, '').replace(/\s+/g, ' ').trim(), ref = `${a.closest('.stop').dataset.key}|${a.href}`;
+      if (!plan.some(p => p.ref === ref)) plan.push({ day, name, url: a.href, ref });
+      put(`<div class="logrow" data-plan="${esc(ref)}" data-name="${esc(name)}" data-labeled="${links.length > 1 ? 1 : ''}"></div>`);
     });
     sec.querySelectorAll('.stop .detail').forEach(d => {
       const opt = d.querySelector('.option');
@@ -225,8 +245,7 @@ async function boot() {
     // 칸마다 key(요일|제목)를 달고, 그 칸 다음에 다른 장소를 끼워 넣는 버튼
     const short = { sat: '토', sun: '일', mon: '월' }[sec.id] ?? '';
     sec.querySelectorAll('.stop').forEach(st => {
-      const title = st.querySelector('.detail h3')?.textContent.replace(/\s+/g, ' ').trim() ?? '';
-      st.dataset.key = `${sec.id}|${title}`;
+      const title = st.dataset.key.slice(sec.id.length + 1);
       stops.push({ key: st.dataset.key, day, label: `${short} ${st.querySelector('.time')?.firstChild?.textContent.trim() ?? ''} ${title}` });
       st.querySelector('.detail').insertAdjacentHTML('beforeend', `<button type="button" class="lg-here" data-here="${esc(st.dataset.key)}" hidden>＋ 이 다음에 다른 곳 추가</button>`);
     });
@@ -245,7 +264,7 @@ async function boot() {
   $('#sPos').innerHTML = '<option value="">맨 끝 ‘계획 밖’ 칸</option>' + [...new Set(stops.map(s => s.day))].map(g =>
     `<optgroup label="${esc(g)}">${stops.filter(s => s.day === g).map(s => `<option value="${esc(s.key)}">${esc(s.label)} 다음</option>`).join('')}</optgroup>`).join('');
   $('#sPlace').innerHTML = '<option value="">장소 없이 쓰기</option>' +
-    groups.map(g => `<optgroup label="${esc(g)}">${plan.filter(p => p.day === g).map(p => `<option value="${esc(p.url)}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('') +
+    groups.map(g => `<optgroup label="${esc(g)}">${plan.filter(p => p.day === g).map(p => `<option value="${esc(p.ref)}">${esc(p.name)}</option>`).join('')}</optgroup>`).join('') +
     '<optgroup label="계획 밖 · 추가된 곳" id="sExtraOpts"></optgroup>';
 
   $('#modeBtn').onclick = () => { $('#authBtn').disabled = false; setMode(!signup); };
@@ -338,11 +357,13 @@ const canDelete = v => v && (isAdmin() || !hasPosts(v));
 const delLabel = v => hasPosts(v) ? (v.plan_ref ? '이 방문 기록과 글 모두 지우기' : '이 장소와 글 모두 지우기') : '다녀왔어요 취소';
 const cancelBtn = v => hasPosts(v) ? '' : `<button type="button" class="lg-x" data-cancel-visit="${v.id}">다녀왔어요 취소</button>`;
 const ga = w => (w.charCodeAt(w.length - 1) - 0xAC00) % 28 ? w + '이' : w + '가'; // 아들이 · 엄마가
+const skippedHtml = (v, label = '') => `<span class="lg-skipped">${label}안 갔어요</span><button type="button" class="lg-x" data-unfold="${esc(v.plan_ref ?? 'v' + v.id)}">펼치기</button><button type="button" class="lg-x" data-unskip="${v.id}">취소</button>`;
+const unfolded = new Set(); // 안 갔어요로 접힌 곳 중 펼쳐 본 곳 (이 화면에서만)
 const stars = n => n ? `<span class="st">${'★'.repeat(n)}${'☆'.repeat(5 - n)}</span>` : '';
 
 const counts = r => { // 계획표 탭에선 좋아요·댓글 수만
   const l = likes.filter(x => x.review_id === r.id).length, c = comments.filter(x => x.review_id === r.id).length;
-  return `${l ? ` <span class="t">♥${l}</span>` : ''}${c ? ` <span class="t">💬${c}</span>` : ''}`;
+  return `${l ? ` <span class="t cnt-i"><i class="ic ic-heart-fill"></i>${l}</span>` : ''}${c ? ` <span class="t cnt-i"><i class="ic ic-chat"></i>${c}</span>` : ''}`;
 };
 function reviewsHtml(visit) { // 계획표 탭: 장소 아래 짧게
   return reviews.filter(r => r.visit_id === visit.id).reverse().map(r => `<div class="rv">${av(roleOf(r.user_id), 'sm')}
@@ -386,7 +407,7 @@ function socialHtml(r) { // 좋아요(누가·언제) · 댓글(누가·언제, 
 }
 
 function render() {
-  const planDone = plan.filter(p => visits.some(v => v.plan_ref === p.url)).length;
+  const planDone = plan.filter(p => visits.some(v => v.plan_ref === p.ref && v.visited_at)).length;
   const extra = visits.filter(v => !v.plan_ref), extraDone = extra.filter(v => v.visited_at).length;
   $('#sum').innerHTML = me
     ? `계획 ${plan.length}곳 중 ${planDone}곳 다녀옴 <span>· 계획 밖 ${extraDone}곳 · 글 ${reviews.length}개</span>`
@@ -395,13 +416,21 @@ function render() {
     m.email === ADMIN ? '<small>관리자</small>' : ''}${isAdmin() && m.user_id !== me.id ? `<button class="lg-x" data-reset-pw="${m.user_id}">비밀번호 초기화</button><button class="lg-x" data-remove="${m.user_id}">탈퇴시키기</button>` : ''}${
     m.user_id === me?.id ? '<button class="lg-x" data-my-pw="1">비밀번호 바꾸기</button><button class="lg-x" data-logout="1">로그아웃</button>' : ''}</div>`).join('');
 
-  document.querySelectorAll('.logrow').forEach(row => {
+  document.querySelectorAll('.logrow[data-plan]').forEach(row => {
     if (!me) { row.innerHTML = ''; return; }
     const v = visits.find(x => x.plan_ref === row.dataset.plan);
     const label = row.dataset.labeled ? `${esc(row.dataset.name)} ` : '';
-    row.innerHTML = v
+    row.innerHTML = v?.visited_at
       ? `<button type="button" class="lg-go done" data-open="${esc(row.dataset.plan)}">✓ ${label}${when(v.visited_at)} 다녀옴 · ${myReview(v) ? '내 리뷰 수정' : '리뷰 쓰기'}</button>${cancelBtn(v)}${reviewsHtml(v)}`
-      : `<button type="button" class="lg-go" data-open="${esc(row.dataset.plan)}">${label}다녀왔어요</button>`;
+      : v?.skipped ? skippedHtml(v, label)
+      : `<button type="button" class="lg-go" data-open="${esc(row.dataset.plan)}">${label}다녀왔어요</button><button type="button" class="lg-x" data-skip-plan="${esc(row.dataset.plan)}">안 갔어요</button>`;
+  });
+  // 안 갔어요: 그 장소(칸 또는 택 1 후보) 설명을 접는다. 칸에 장소가 여럿이면 모두 안 갔을 때만
+  document.querySelectorAll('.days .stop:not(.lg-added), .days .option').forEach(box => {
+    const rows = [...box.querySelectorAll(box.classList.contains('option') ? ':scope > .logrow[data-plan]' : ':scope > .detail > .logrow[data-plan]')];
+    const skip = rows.length > 0 && rows.every(row => visits.find(x => x.plan_ref === row.dataset.plan)?.skipped);
+    box.classList.toggle('lg-skip', skip);
+    box.classList.toggle('lg-open', skip && unfolded.has(rows[0].dataset.plan));
   });
 
   $('#extra').hidden = !me;
@@ -409,11 +438,12 @@ function render() {
   // 계획 밖 장소: 자리를 정한 곳은 그 칸 다음에 끼우고(같은 자리는 추가한 순서대로), 나머지는 맨 끝 칸에
   document.querySelectorAll('.lg-added').forEach(el => el.remove());
   document.querySelectorAll('.lg-here').forEach(b => { b.hidden = !me; });
-  const card = (v, added) => `<article class="stop${added ? ' lg-added' : ''}" data-visit-row="${v.id}"><div class="time">${v.visited_at ? hm(v.visited_at) : ''}<small>${added || !v.visited_at ? '추가' : md(ymd(v.visited_at))} · ${esc(roleOf(v.user_id))}</small></div><div class="detail">
+  const card = (v, added) => `<article class="stop${added ? ' lg-added' : ''}${v.skipped && !v.visited_at ? ' lg-skip' : ''}${unfolded.has('v' + v.id) ? ' lg-open' : ''}" data-visit-row="${v.id}"><div class="time">${v.visited_at ? hm(v.visited_at) : ''}<small>${added || !v.visited_at ? '추가' : md(ymd(v.visited_at))} · ${esc(roleOf(v.user_id))}</small></div><div class="detail">
     <h3>${v.place_url ? `<a class="place" href="${esc(v.place_url)}" target="_blank" rel="noopener noreferrer">${esc(v.place_name)}</a>` : esc(v.place_name)}${added ? ' <span class="tag">계획에 없던 곳</span>' : ''}</h3>
     ${v.note ? `<p>${esc(v.note)}</p>` : ''}${v.address ? `<p class="address">${esc(v.address)}</p>` : ''}
-    ${v.visited_at ? `<button type="button" class="lg-go done" data-open-visit="${v.id}">✓ ${when(v.visited_at)} 다녀옴 · ${myReview(v) ? '내 리뷰 수정' : '리뷰 쓰기'}</button>${cancelBtn(v)}`
-      : `<button type="button" class="lg-go" data-open-visit="${v.id}">다녀왔어요</button>`}${hasPosts(v) ? '' : `<button type="button" class="lg-x" data-del-visit="${v.id}">장소 삭제</button>`}${reviewsHtml(v)}</div></article>`;
+    <div class="logrow">${v.visited_at ? `<button type="button" class="lg-go done" data-open-visit="${v.id}">✓ ${when(v.visited_at)} 다녀옴 · ${myReview(v) ? '내 리뷰 수정' : '리뷰 쓰기'}</button>${cancelBtn(v)}`
+      : v.skipped ? skippedHtml(v)
+      : `<button type="button" class="lg-go" data-open-visit="${v.id}">다녀왔어요</button><button type="button" class="lg-x" data-skip-visit="${v.id}">안 갔어요</button>`}${hasPosts(v) ? '' : `<button type="button" class="lg-x" data-del-visit="${v.id}">장소 삭제</button>`}${reviewsHtml(v)}</div></div></article>`;
   const loose = extra.filter(v => {
     const anchor = v.after_ref && [...document.querySelectorAll('.stop[data-key]')].find(s => s.dataset.key === v.after_ref);
     if (!anchor) return true; // 자리를 안 정했거나 계획표가 바뀌어 그 칸이 사라진 경우
@@ -448,7 +478,7 @@ function openSheet({ planUrl = null, visitId = null, newPlace = false, after = n
   const visit = visitId ? visits.find(v => v.id === +visitId) : planUrl ? visits.find(v => v.plan_ref === planUrl) : null;
   if (myReview(visit)) return openEdit(myReview(visit));
   const fixed = !!(planUrl || visit);
-  cur = { planUrl, visit, newPlace, media: [], name: visit?.place_name ?? plan.find(x => x.url === planUrl)?.name };
+  cur = { planUrl, visit, newPlace, media: [], name: visit?.place_name ?? plan.find(x => x.ref === planUrl)?.name };
   $('#sheetForm').reset(); paintStars(); $('#sBody').style.height = '';
   paintMedia();
   $('#sTitle').textContent = fixed ? cur.name : newPlace ? '계획 밖 장소 추가' : '새 글';
@@ -518,7 +548,7 @@ $('#sPlace').onchange = e => {
   const v = e.target.value;
   const ex = v.startsWith('v:') ? visits.find(x => x.id === +v.slice(2)) : null; // 계획 밖으로 추가된 곳
   cur.planUrl = v && v !== 'new' && !ex ? v : null;
-  cur.name = ex?.place_name ?? plan.find(x => x.url === cur.planUrl)?.name;
+  cur.name = ex?.place_name ?? plan.find(x => x.ref === cur.planUrl)?.name;
   cur.visit = ex ?? (cur.planUrl ? visits.find(x => x.plan_ref === cur.planUrl) : null);
   if (myReview(cur.visit)) { $('#sheet').close(); return openEdit(myReview(cur.visit)); } // 이미 리뷰한 곳은 수정으로
   $('#sStarBox').hidden = !v;
@@ -620,7 +650,7 @@ async function ensureVisit() { // 장소가 정해졌으면 방문 기록(가족
   if (!cur.planUrl) return null;
   const same = visits.find(v => v.plan_ref === cur.planUrl);
   if (same) return same;
-  const ins = await sb.from('visits').insert({ place_name: cur.name, place_url: cur.planUrl, plan_ref: cur.planUrl, user_id: me.id, visited_at: whenISO(), visited_on: $('#sDay').value }).select().single();
+  const ins = await sb.from('visits').insert({ place_name: cur.name, place_url: plan.find(x => x.ref === cur.planUrl)?.url, plan_ref: cur.planUrl, user_id: me.id, visited_at: whenISO(), visited_on: $('#sDay').value }).select().single();
   if (ins.error?.code === '23505') return (await sb.from('visits').select().eq('plan_ref', cur.planUrl).single()).data; // 다른 가족이 방금 먼저 기록함
   if (ins.error) throw ins.error;
   return ins.data;
@@ -646,7 +676,7 @@ $('#sheetForm').onsubmit = async e => {
     const moved = cur.whenEditable && (cur.visit ?? cur.edit) && $('#sDay').value + $('#sTime').value !== cur.whenOrig;
     const target = cur.visit ?? (cur.edit?.visit_id && visits.find(x => x.id === cur.edit.visit_id));
     if ((moved || marking) && target) { // 이미 있는 방문 기록의 시각만 바꿈
-      const { error } = await sb.from('visits').update({ visited_at: whenISO(), visited_on: $('#sDay').value }).eq('id', target.id);
+      const { error } = await sb.from('visits').update({ visited_at: whenISO(), visited_on: $('#sDay').value, skipped: false }).eq('id', target.id);
       if (error) throw error;
     }
     const note = $('#sNote').value.trim() || null, noted = cur.move && !$('#sNoteBox').hidden && note !== (cur.move.note ?? null);
@@ -800,6 +830,21 @@ document.addEventListener('click', async e => {
   if (d.save) return saveMedia(d.save, e.target.closest('button'));
   if (d.cancelVisit) return unvisit(visits.find(x => x.id === +d.cancelVisit));
   if (d.delVisit) return deleteVisit(visits.find(x => x.id === +d.delVisit));
+  if (d.skipPlan || d.skipVisit) { // 안 갔어요: 계획 장소는 기록을 만들고, 추가한 장소는 표시만
+    const p = plan.find(x => x.ref === d.skipPlan);
+    const { error } = d.skipPlan
+      ? await sb.from('visits').insert({ place_name: p.name, place_url: p.url, plan_ref: p.ref, user_id: me.id, visited_at: null, skipped: true })
+      : await sb.from('visits').update({ skipped: true }).eq('id', d.skipVisit);
+    if (error) alert(error.code === '23505' ? '그 사이 다른 가족이 먼저 기록했어요' : error.message);
+    return load();
+  }
+  if (d.unskip) {
+    const v = visits.find(x => x.id === +d.unskip);
+    const { error } = v.plan_ref ? await sb.from('visits').delete().eq('id', v.id) : await sb.from('visits').update({ skipped: false }).eq('id', v.id);
+    if (error) alert(error.message);
+    return load();
+  }
+  if (d.unfold) { unfolded.has(d.unfold) ? unfolded.delete(d.unfold) : unfolded.add(d.unfold); return render(); }
   if (d.editReview) return openSheet({ editId: d.editReview });
   if (d.like) {
     const btn = e.target.closest('button'); btn.classList.toggle('on'); btn.classList.add('pop'); // 누르자마자 반응
