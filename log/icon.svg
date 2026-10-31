@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- 홈 화면 아이콘 원본: 감귤 해 · 한라산 · 바다. 모서리까지 칠해 둬서 maskable로도 쓴다 -->
+  <rect width="512" height="512" fill="#244c43"/>
+  <circle cx="338" cy="176" r="64" fill="#f39a2b"/>
+  <path d="M338 112c6-18 22-28 40-26-4 18-20 28-40 26z" fill="#7fbf6a"/>
+  <path d="M40 380C130 352 186 238 230 214l12 10h28l12-10c44 24 100 138 190 166z" fill="#8fb89b"/>
+  <path d="M222 236l20-14h28l20 14c-22-4-46-4-68 0z" fill="#f7f5ee" opacity=".85"/>
+  <rect y="372" width="512" height="140" fill="#3f8f86"/>
+  <path d="M96 418q20-14 40 0t40 0 40 0M276 452q20-14 40 0t40 0 40 0" fill="none" stroke="#bfe3dc" stroke-width="9" stroke-linecap="round"/>
+</svg>

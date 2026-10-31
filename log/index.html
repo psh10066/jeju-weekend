@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#244c43">
 <title>제주 가족 기록</title>
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="apple-touch-icon.png">
 <!-- 계획표(../index.html)의 스타일과 본문을 그대로 가져와 그 위에 기록 기능을 얹는다 -->
 <style id="planStyle"></style>
 <style>
@@ -222,7 +223,7 @@ async function boot() {
 
   main.querySelector('.eyebrow').textContent = 'JEJU ISLAND · FAMILY LOG';
   main.querySelector('.subtitle').innerHTML = '다녀온 곳과 그날 이야기를 가족끼리 같이 남겨요 · <a href="../" style="text-decoration:underline;white-space:nowrap">원래 계획표</a>';
-  main.querySelector('.actions').innerHTML = '<button class="pill" type="button" id="logout" hidden>로그아웃</button>';
+  main.querySelector('.actions').innerHTML = '<button class="pill" type="button" id="push" hidden>🔔 알림 켜기</button><button class="pill" type="button" id="logout" hidden>로그아웃</button>';
   main.querySelector('.mast').insertAdjacentHTML('afterend', `<section class="famlog" aria-label="가족 기록">
     <div class="sum" id="sum"></div><div class="fam" id="fam"></div>
     <div class="lg-tabs" id="tabs" role="group" aria-label="보기" hidden><button type="button" data-tab="feed">피드</button><button type="button" data-tab="plan">계획표</button><button type="button" data-tab="recent">최근<span class="badge" id="badge" hidden></span></button></div>
@@ -280,7 +281,8 @@ async function boot() {
 
   $('#modeBtn').onclick = () => { $('#authBtn').disabled = false; setMode(!signup); };
   $('#authForm').onsubmit = onAuth;
-  $('#logout').onclick = () => sb.auth.signOut();
+  $('#logout').onclick = logout;
+  $('#push').onclick = () => enablePush().catch(x => alert(x.message));
   $('#tabs').onclick = e => { if (e.target.dataset.tab) setTab(e.target.dataset.tab); };
   sb.auth.onAuthStateChange(onSession);
 }
@@ -324,6 +326,7 @@ function onSession(_ev, session) {
   $('#auth').hidden = !!me; $('#logout').hidden = !me; $('#tabs').hidden = !me; $('#fab').hidden = !me;
   setTab(tab);
   if (channel) { sb.removeChannel(channel); channel = null; }
+  syncPush();
   if (!me) { members = visits = reviews = comments = likes = []; render(); return setMode(false); }
   load();
   // shortcut: 변경이 오면 전체를 다시 읽음 (가족 4명 규모라 충분), 데이터가 커지면 행 단위 반영으로
@@ -332,6 +335,37 @@ function onSession(_ev, session) {
   ['visits', 'reviews', 'members', 'comments', 'likes'].forEach(table => channel.on('postgres_changes', { event: '*', schema: 'public', table }, reload));
   channel.subscribe();
 }
+
+// ---------- 알림 (웹 푸시) ----------
+// 아이폰은 Safari 탭에선 푸시가 없고, 홈 화면에 추가한 앱에서만 된다
+const VAPID_KEY = 'BO90_LwUZxA9fzs6Kal12DHF0LqJXnSYrMtW-GNT9iHmesdObbaiWqsLyOQhpz_tDH30rPYxXNA5KB6xnR2UH5k';
+const iosTab = /iPhone|iPad/.test(navigator.userAgent) && !navigator.standalone;
+const swReady = 'serviceWorker' in navigator ? navigator.serviceWorker.register('sw.js').catch(() => null) : Promise.resolve(null);
+const pushSub = async () => 'PushManager' in window ? (await swReady)?.pushManager.getSubscription() : null;
+async function savePush(sub) {
+  const { endpoint, keys } = sub.toJSON();
+  const { error } = await sb.rpc('save_push', { sub_endpoint: endpoint, sub_p256dh: keys.p256dh, sub_auth: keys.auth });
+  if (error) throw error;
+}
+async function syncPush() { // 로그인할 때: 이미 알림을 켠 기기면 지금 사용자 것으로 다시 등록
+  const sub = me && await pushSub().catch(() => null);
+  if (sub) await savePush(sub).catch(() => {});
+  $('#push').hidden = !me || !!sub || !iosTab && !('PushManager' in window);
+}
+async function enablePush() {
+  if (iosTab) return alert('아이폰은 Safari 공유 버튼 → ‘홈 화면에 추가’ 후, 홈 화면에 생긴 앱에서 알림을 켜주세요');
+  if (await Notification.requestPermission() !== 'granted') return alert('알림이 막혀 있어요. 브라우저 설정 → 사이트 알림에서 허용해주세요');
+  const key = Uint8Array.from(atob(VAPID_KEY.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0));
+  const sub = await (await swReady).pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+  await savePush(sub);
+  $('#push').hidden = true;
+}
+async function logout() { // 같은 기기를 다른 가족이 쓸 수 있으니 이 기기 알림 등록도 지운다
+  const sub = await pushSub().catch(() => null);
+  if (sub) await Promise.all([sb.from('push_subscriptions').delete().eq('endpoint', sub.endpoint), sub.unsubscribe()]).catch(() => {});
+  return sb.auth.signOut();
+}
+const notify = body => sb.functions.invoke('notify', { body }).catch(() => {}); // 알림 실패는 글쓰기와 무관
 
 // ---------- 데이터 ----------
 async function load() {
@@ -748,11 +782,12 @@ $('#sheetForm').onsubmit = async e => {
     const visit = await ensureVisit();
     if (hasPost) {
       const photo_paths = await uploadMedia(files);
-      const { error } = await sb.from('reviews').insert({ visit_id: visit?.id ?? null, user_id: me.id, rating, body, photo_paths });
+      const { data, error } = await sb.from('reviews').insert({ visit_id: visit?.id ?? null, user_id: me.id, rating, body, photo_paths }).select('id').single();
       if (error) {
         await sb.storage.from('photos').remove(photo_paths);
         throw error;
       }
+      notify({ review: data.id });
     }
     $('#sheet').close();
     load();
@@ -869,9 +904,10 @@ document.addEventListener('submit', async e => { // 댓글 게시
   const input = f.querySelector('input'), body = input.value.trim();
   if (!body) return;
   f.querySelector('button').disabled = true;
-  const { error } = await sb.from('comments').insert({ review_id: +f.dataset.comment, user_id: me.id, body });
+  const { data, error } = await sb.from('comments').insert({ review_id: +f.dataset.comment, user_id: me.id, body }).select('id').single();
   f.querySelector('button').disabled = false;
   if (error) return alert(error.message);
+  notify({ comment: data.id });
   input.value = ''; openComments.add(+f.dataset.comment); load();
 });
 document.addEventListener('click', async e => {
@@ -895,7 +931,7 @@ document.addEventListener('click', async e => {
   if (d.more) { e.target.previousElementSibling.classList.add('open'); return e.target.remove(); }
   if (d.goto) return gotoVisit(d.goto);
   if (d.myPw) return changeMyPassword();
-  if (d.logout) return confirm('로그아웃할까요?') && sb.auth.signOut();
+  if (d.logout) return confirm('로그아웃할까요?') && logout();
   if (d.resetPw) return resetPassword(d.resetPw);
   if (d.save) return saveMedia(d.save, e.target.closest('button'));
   if (d.cancelVisit) return unvisit(visits.find(x => x.id === +d.cancelVisit));

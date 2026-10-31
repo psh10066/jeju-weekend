@@ -1,2 +1,3 @@
 supabase/.temp/
 .omc/
+supabase/functions/.env
