@@ -64,7 +64,7 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .ic-heart{-webkit-mask-image:url(icons/heart.svg);mask-image:url(icons/heart.svg)}
 .like.on .ic-heart{-webkit-mask-image:url(icons/heart-fill.svg);mask-image:url(icons/heart-fill.svg)}
 .ic-heart-fill{-webkit-mask-image:url(icons/heart-fill.svg);mask-image:url(icons/heart-fill.svg)}
-.cnt-i{display:inline-flex;align-items:center;gap:2px;margin-left:4px}.cnt-i .ic{width:13px;height:13px}.cnt-i .ic-heart-fill{color:#ed4956}
+.cnt-i{margin-left:4px;white-space:nowrap}.cnt-i .ic{display:inline-block;width:13px;height:13px;vertical-align:-2px;margin-right:2px}.cnt-i .ic-heart-fill{color:#ed4956}
 /* 안 갔어요: 접고 흐리게, 펼치기로 다시 보기 */
 .lg-skipped{font-size:11px;color:var(--muted);margin-right:4px}
 .lg-skip:not(.lg-open)>.detail>:not(h3):not(.logrow):not(.option):not(.lg-here),.option.lg-skip:not(.lg-open)>:not(h3):not(.logrow){display:none}
@@ -328,7 +328,9 @@ async function load() {
     sb.from('comments').select('*').order('created_at'),
     sb.from('likes').select('*').order('created_at'),
   ]);
-  members = m.data || []; visits = v.data || []; reviews = r.data || []; comments = c.data || []; likes = l.data || [];
+  members = m.data || []; visits = v.data || [];
+  visits.forEach(x => { if (x.plan_ref && !x.plan_ref.includes('|')) x.plan_ref = plan.find(p => p.url === x.plan_ref)?.ref ?? x.plan_ref; }); // 예전 기록(링크만)은 그 링크가 처음 나오는 칸으로
+  reviews = r.data || []; comments = c.data || []; likes = l.data || [];
   if (me && !members.some(x => x.user_id === me.id)) {
     alert('가족 명단에 없는 계정이에요. 다시 로그인해 주세요.');
     return sb.auth.signOut();
