@@ -82,6 +82,8 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .cmt-edit textarea.lg-input{min-height:64px}
 .cmt-form{display:flex;gap:6px;margin-top:8px}.cmt-form .lg-input{padding:8px 10px}.cmt-form .lg-b{flex:none;min-height:0;padding:8px 12px}
 .visit-line{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin:0 0 14px;padding:0 4px}
+.rv[data-post]{cursor:pointer}
+.flash{animation:flash 1.6s ease-out}@keyframes flash{0%,40%{box-shadow:0 0 0 3px #d99b38}100%{box-shadow:0 0 0 3px #d99b3800}}
 .feed-empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
 .fab{position:fixed;right:max(16px,calc(50% - 680px));bottom:calc(20px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:28px;line-height:1;box-shadow:0 6px 20px #263e3655;z-index:6}
 body.feed .overview,body.feed .mobile-nav,body.feed .days,body.feed .checkbar,body.feed .footer{display:none}
@@ -321,6 +323,10 @@ function onSession(_ev, session) {
 
 // ---------- 데이터 ----------
 async function load() {
+  await loadData();
+  if (pendingPost && gotoPost(pendingPost)) pendingPost = null;
+}
+async function loadData() {
   const [m, v, r, c, l] = await Promise.all([
     sb.from('members').select('*').order('created_at'),
     sb.from('visits').select('*').order('visited_at').order('created_at'),
@@ -367,7 +373,7 @@ const counts = r => { // 계획표 탭에선 좋아요·댓글 수만
   return `${l ? ` <span class="t cnt-i"><i class="ic ic-heart-fill"></i>${l}</span>` : ''}${c ? ` <span class="t cnt-i"><i class="ic ic-chat"></i>${c}</span>` : ''}`;
 };
 function reviewsHtml(visit) { // 계획표 탭: 장소 아래 짧게
-  return reviews.filter(r => r.visit_id === visit.id).reverse().map(r => `<div class="rv">${av(roleOf(r.user_id), 'sm')}
+  return reviews.filter(r => r.visit_id === visit.id).reverse().map(r => `<div class="rv" data-post="${r.id}">${av(roleOf(r.user_id), 'sm')}
     <div><b>${esc(roleOf(r.user_id))}</b> ${stars(r.rating)}${counts(r)}${r.user_id === me?.id ? ` <button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}${r.body ? longText(r.body, 3) : ''}
     ${r.photo_paths.length ? `<div class="thumbs">${r.photo_paths.slice(0, 4).map(p => !photos[p] ? '' : isVideo(p)
       ? `<video src="${esc(photos[p])}#t=0.1" muted playsinline preload="metadata"></video>` : `<img src="${esc(photos[p])}" alt="" loading="lazy">`).join('')}</div>` : ''}</div></div>`).join('');
@@ -376,10 +382,10 @@ function reviewsHtml(visit) { // 계획표 탭: 장소 아래 짧게
 function postHtml(r) { // 피드 탭: 인스타 카드
   const v = r.visit_id ? visits.find(x => x.id === r.visit_id) : null;
   const imgs = r.photo_paths.filter(p => photos[p]);
-  return `<article class="post">
+  return `<article class="post" id="post-${r.id}">
     <div class="post-h">${av(roleOf(r.user_id))}<div><div class="n">${esc(roleOf(r.user_id))} <span class="t">· ${when(r.created_at)}</span></div>
-      ${v ? `<button type="button" class="pl" data-goto="${v.id}">📍 ${esc(v.place_name)}</button>` : ''}</div>
-      <span style="margin-left:auto">${r.user_id === me?.id ? `<button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}</span></div>
+      ${v ? `<button type="button" class="pl" data-goto="${v.id}">📍 ${esc(v.place_name)}${v.visited_at ? ` <span class="t">· ${when(v.visited_at)} 다녀옴</span>` : ''}</button>` : ''}</div>
+      <span style="margin-left:auto;white-space:nowrap"><button class="lg-x" data-share="${r.id}">링크</button>${r.user_id === me?.id ? `<button class="lg-x" data-edit-review="${r.id}">수정</button>` : ''}${mine(r) ? `<button class="lg-x" data-del-review="${r.id}">지우기</button>` : ''}</span></div>
     ${imgs.length ? `<div class="post-imgs"><div class="track" data-track="${r.id}">${imgs.map((p, i) => isVideo(p)
       ? `<video src="${esc(photos[p])}#t=0.1" controls playsinline preload="metadata"></video>`
       : `<img src="${esc(photos[p])}" alt="${esc(roleOf(r.user_id))}의 사진 ${i + 1}" loading="lazy">`).join('')}</div>${imgs.length > 1 ? `<span class="cnt">1/${imgs.length}</span>` : ''}</div>` : ''}
@@ -748,12 +754,26 @@ async function saveMedia(id, btn) {
   btn.disabled = false; btn.innerHTML = label;
 }
 
+const flash = el => { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); };
 function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
   const v = visits.find(x => x.id === +id);
   if (!v) return;
   setTab('plan');
-  const el = v.plan_ref ? [...document.querySelectorAll('.logrow')].find(r => r.dataset.plan === v.plan_ref) : document.querySelector(`[data-visit-row="${v.id}"]`);
-  el?.closest('.stop')?.scrollIntoView({ block: 'center' });
+  const row = v.plan_ref ? [...document.querySelectorAll('.logrow[data-plan]')].find(r => r.dataset.plan === v.plan_ref) : document.querySelector(`[data-visit-row="${v.id}"]`);
+  const el = row?.closest('.option') ?? row?.closest('.stop'); // 택 1 후보면 그 후보로
+  if (!el) return;
+  el.scrollIntoView({ block: 'center', behavior: 'instant' }); flash(el); // 탭을 바꾼 직후라 부드러운 스크롤은 멈춰버림
+}
+// 글마다 주소: ?post=글번호 (로그인한 가족만 볼 수 있음). 계획표의 리뷰를 눌러도 이 글로
+const postUrl = id => `${location.origin}${location.pathname}?post=${id}`;
+let pendingPost = new URLSearchParams(location.search).get('post');
+function gotoPost(id) {
+  const el = document.getElementById(`post-${id}`);
+  if (!el) return false;
+  setTab('feed');
+  history.replaceState(null, '', postUrl(id));
+  el.scrollIntoView({ block: 'start', behavior: 'instant' }); flash(el);
+  return true;
 }
 
 $('#fab').onclick = () => openSheet();
@@ -814,8 +834,15 @@ document.addEventListener('submit', async e => { // 댓글 게시
   input.value = ''; openComments.add(+f.dataset.comment); load();
 });
 document.addEventListener('click', async e => {
+  const rv = !e.target.closest('button, a, video') && e.target.closest('.rv[data-post]');
+  if (rv) return gotoPost(rv.dataset.post);
   const d = e.target.closest('button')?.dataset;
   if (!d) return;
+  if (d.share) {
+    const btn = e.target.closest('button'), url = postUrl(d.share);
+    try { await navigator.clipboard.writeText(url); btn.textContent = '복사됨'; } catch { prompt('이 주소를 복사하세요', url); }
+    return setTimeout(() => { btn.textContent = '링크'; }, 1500);
+  }
   if (d.open) return openSheet({ planUrl: d.open });
   if (d.openVisit) return openSheet({ visitId: d.openVisit });
   if (d.newPlace) return openSheet({ newPlace: true });
