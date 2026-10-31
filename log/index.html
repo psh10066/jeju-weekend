@@ -347,7 +347,6 @@ const who = id => members.find(x => x.user_id === id);
 const roleOf = id => who(id)?.role ?? '탈퇴한 가족';
 const isAdmin = () => me?.email === ADMIN;
 const mine = row => row.user_id === me?.id || isAdmin();
-const myReview = v => v && reviews.find(r => r.visit_id === v.id && r.user_id === me?.id); // 장소 리뷰는 사람당 1개
 // 긴 글은 N줄까지만 보이고 '더 보기'로 펼친다 (숨은 탭에선 높이를 못 재서 줄 수·길이로 판단)
 const longText = (body, lines, prefix = '') => `<div class="clamp" style="--lines:${lines}">${prefix}${esc(body)}</div>${
   body.split('\n').length > lines || body.length > lines * 38 ? '<button type="button" class="more" data-more="1">더 보기</button>' : ''}`;
@@ -423,7 +422,7 @@ function render() {
     const v = visits.find(x => x.plan_ref === row.dataset.plan);
     const label = row.dataset.labeled ? `${esc(row.dataset.name)} ` : '';
     row.innerHTML = v?.visited_at
-      ? `<button type="button" class="lg-go done" data-open="${esc(row.dataset.plan)}">✓ ${label}${when(v.visited_at)} 다녀옴 · ${myReview(v) ? '내 리뷰 수정' : '리뷰 쓰기'}</button>${cancelBtn(v)}${reviewsHtml(v)}`
+      ? `<button type="button" class="lg-go done" data-open="${esc(row.dataset.plan)}">✓ ${label}${when(v.visited_at)} 다녀옴 · 리뷰 쓰기</button>${cancelBtn(v)}${reviewsHtml(v)}`
       : v?.skipped ? skippedHtml(v, label)
       : `<button type="button" class="lg-go" data-open="${esc(row.dataset.plan)}">${label}다녀왔어요</button><button type="button" class="lg-x" data-skip-plan="${esc(row.dataset.plan)}">안 갔어요</button>`;
   });
@@ -443,7 +442,7 @@ function render() {
   const card = (v, added) => `<article class="stop${added ? ' lg-added' : ''}${v.skipped && !v.visited_at ? ' lg-skip' : ''}${unfolded.has('v' + v.id) ? ' lg-open' : ''}" data-visit-row="${v.id}"><div class="time">${v.visited_at ? hm(v.visited_at) : ''}<small>${added || !v.visited_at ? '추가' : md(ymd(v.visited_at))} · ${esc(roleOf(v.user_id))}</small></div><div class="detail">
     <h3>${v.place_url ? `<a class="place" href="${esc(v.place_url)}" target="_blank" rel="noopener noreferrer">${esc(v.place_name)}</a>` : esc(v.place_name)}${added ? ' <span class="tag">계획에 없던 곳</span>' : ''}</h3>
     ${v.note ? `<p>${esc(v.note)}</p>` : ''}${v.address ? `<p class="address">${esc(v.address)}</p>` : ''}
-    <div class="logrow">${v.visited_at ? `<button type="button" class="lg-go done" data-open-visit="${v.id}">✓ ${when(v.visited_at)} 다녀옴 · ${myReview(v) ? '내 리뷰 수정' : '리뷰 쓰기'}</button>${cancelBtn(v)}`
+    <div class="logrow">${v.visited_at ? `<button type="button" class="lg-go done" data-open-visit="${v.id}">✓ ${when(v.visited_at)} 다녀옴 · 리뷰 쓰기</button>${cancelBtn(v)}`
       : v.skipped ? skippedHtml(v)
       : `<button type="button" class="lg-go" data-open-visit="${v.id}">다녀왔어요</button><button type="button" class="lg-x" data-skip-visit="${v.id}">안 갔어요</button>`}${hasPosts(v) ? '' : `<button type="button" class="lg-x" data-del-visit="${v.id}">장소 삭제</button>`}${reviewsHtml(v)}</div></div></article>`;
   const loose = extra.filter(v => {
@@ -478,7 +477,6 @@ function openSheet({ planUrl = null, visitId = null, newPlace = false, after = n
   if (editId) return openEdit(reviews.find(r => r.id === +editId));
   $('#sPhotoBox').hidden = false;
   const visit = visitId ? visits.find(v => v.id === +visitId) : planUrl ? visits.find(v => v.plan_ref === planUrl) : null;
-  if (myReview(visit)) return openEdit(myReview(visit));
   const fixed = !!(planUrl || visit);
   cur = { planUrl, visit, newPlace, media: [], name: visit?.place_name ?? plan.find(x => x.ref === planUrl)?.name };
   $('#sheetForm').reset(); paintStars(); $('#sBody').style.height = '';
@@ -552,7 +550,6 @@ $('#sPlace').onchange = e => {
   cur.planUrl = v && v !== 'new' && !ex ? v : null;
   cur.name = ex?.place_name ?? plan.find(x => x.ref === cur.planUrl)?.name;
   cur.visit = ex ?? (cur.planUrl ? visits.find(x => x.plan_ref === cur.planUrl) : null);
-  if (myReview(cur.visit)) { $('#sheet').close(); return openEdit(myReview(cur.visit)); } // 이미 리뷰한 곳은 수정으로
   $('#sStarBox').hidden = !v;
   showWhen(cur.visit, !!v);
   showDel(cur.visit);
@@ -702,13 +699,12 @@ $('#sheetForm').onsubmit = async e => {
     if (!hasPost && (moved || marking || noted)) { $('#sheet').close(); return load(); }
     if (!hasPost && (cur.visit || $('#sPlace').value === '' && !cur.planUrl)) throw new Error('글이나 사진·동영상을 넣어주세요');
     const visit = await ensureVisit();
-    if (hasPost && myReview(visit)) throw new Error('이미 이 장소에 리뷰를 남겼어요. ‘내 리뷰 수정’으로 고쳐주세요');
     if (hasPost) {
       const photo_paths = await uploadMedia(files);
       const { error } = await sb.from('reviews').insert({ visit_id: visit?.id ?? null, user_id: me.id, rating, body, photo_paths });
       if (error) {
         await sb.storage.from('photos').remove(photo_paths);
-        throw error.code === '23505' ? new Error('이미 이 장소에 리뷰를 남겼어요. ‘내 리뷰 수정’으로 고쳐주세요') : error;
+        throw error;
       }
     }
     $('#sheet').close();
