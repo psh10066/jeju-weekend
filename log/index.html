@@ -115,7 +115,7 @@ dialog h3{margin:0;font-size:18px;letter-spacing:-.5px}dialog .meta{font-size:12
 .mobile-nav a.lg-nav{color:#a57a2c}
 [hidden]{display:none!important}
 @media(max-width:700px){
-  dialog#sheet,dialog#mini{width:100%;max-width:100%;margin:auto 0 0;border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:92vh}
+  dialog#sheet,dialog#mini{width:100%;max-width:100%;margin:auto 0 var(--kb,0px);border-radius:16px 16px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom));max-height:92vh;max-height:calc(var(--vvh,100dvh) * .92)}
   .lg-go{font-size:12px;padding:7px 12px;min-height:34px}.lg-here{font-size:12px;padding:10px 0 2px}
   .rv{font-size:13px}.rv .thumbs img{width:56px;height:56px}
   .famlog .sum{font-size:14px}.fam .p{font-size:12px}.fam .p small{font-size:10px}
@@ -176,8 +176,15 @@ const av = (role, cls = '') => `<span class="av ${cls}" data-r="${esc(role)}" ar
 let me, members = [], visits = [], reviews = [], comments = [], likes = [], photos = {}, plan = [], signup = false, channel = null, cur = null;
 $('#sTime').innerHTML = Array.from({ length: 48 }, (_, i) => { const v = `${String(i >> 1).padStart(2, '0')}:${i % 2 ? '30' : '00'}`; return `<option>${v}</option>`; }).join('');
 let stops = [], openComments = new Set(), editingComment = null; // 댓글은 그 자리에서 고친다 // 계획표 칸들 { key, day, label } — 추가 장소를 끼워 넣을 자리
-let tab = 'feed';
-try { tab = localStorage.getItem('jeju-log-tab') || 'feed'; } catch {}
+// 주소에 탭과 보던 글을 담아 새로고침해도 같은 화면: ?tab=feed&post=12 / ?tab=plan / ?tab=recent
+// 공유 링크(?post=12만)로 들어오면 그 글을 반짝여서 알려준다
+const TABS = ['feed', 'plan', 'recent'], qs = new URLSearchParams(location.search);
+let tab = TABS.includes(qs.get('tab')) ? qs.get('tab') : 'feed';
+if (!qs.get('tab') && !qs.get('post')) try { tab = TABS.includes(localStorage.getItem('jeju-log-tab')) ? localStorage.getItem('jeju-log-tab') : 'feed'; } catch {}
+function setUrl(params) {
+  const u = new URLSearchParams(params).toString();
+  if (u !== location.search.slice(1)) history.replaceState(null, '', `${location.pathname}${u ? '?' + u : ''}`);
+}
 
 $('#sStars').innerHTML = [1, 2, 3, 4, 5].map(n => `<input type="radio" name="star" id="st${n}" value="${n}"><label for="st${n}" aria-label="${n}점">★</label>`).join('');
 $('#sStars').onchange = paintStars;
@@ -288,6 +295,7 @@ async function boot() {
 }
 
 function setTab(t) {
+  if (tab !== t || !new URLSearchParams(location.search).get('tab')) setUrl({ tab: t }); // 탭을 바꾸면 보던 글 표시는 지움
   tab = t;
   try { localStorage.setItem('jeju-log-tab', t); } catch {}
   document.body.classList.toggle('feed', !!me && t === 'feed');
@@ -368,9 +376,12 @@ async function logout() { // 같은 기기를 다른 가족이 쓸 수 있으니
 const notify = body => sb.functions.invoke('notify', { body }).catch(() => {}); // 알림 실패는 글쓰기와 무관
 
 // ---------- 데이터 ----------
+let signedAt = 0;
+// 폰은 화면을 끄거나 다른 앱에 갔다 오면 실시간 연결이 끊긴 사이의 변경을 못 받으니, 돌아올 때 다시 불러온다
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && me) load(); });
 async function load() {
   await loadData();
-  if (pendingPost && gotoPost(pendingPost)) pendingPost = null;
+  if (pendingPost) { gotoPost(pendingPost, { quiet: !pendingFlash }); pendingPost = null; } // 지워진 글이면 그냥 피드
 }
 async function loadData() {
   const [m, v, r, c, l] = await Promise.all([
@@ -387,6 +398,7 @@ async function loadData() {
     alert('가족 명단에 없는 계정이에요. 다시 로그인해 주세요.');
     return sb.auth.signOut();
   }
+  if (Date.now() - signedAt > 50 * 60e3) { photos = {}; signedAt = Date.now(); } // 사진 주소는 1시간 뒤 만료라 그 전에 새로
   const paths = reviews.flatMap(x => x.photo_paths).filter(p => !photos[p]);
   if (paths.length) {
     const { data } = await sb.storage.from('photos').createSignedUrls(paths, 3600);
@@ -661,6 +673,14 @@ $('#sPhoto').onchange = e => { // 고를 때마다 뒤에 더한다 (여러 번 
   paintMedia();
 };
 $('#sClose').onclick = () => $('#sheet').close();
+// 아이폰 등은 키보드가 화면 위를 덮어서, 창을 실제로 보이는 높이에 맞추고 키보드 높이만큼 올린다
+function fitSheet() {
+  const vv = visualViewport;
+  if (!vv) return;
+  document.documentElement.style.setProperty('--vvh', `${vv.height}px`);
+  document.documentElement.style.setProperty('--kb', `${Math.max(0, Math.round(innerHeight - vv.height - vv.offsetTop))}px`);
+}
+visualViewport?.addEventListener('resize', fitSheet); visualViewport?.addEventListener('scroll', fitSheet); fitSheet();
 const grow = () => { const b = $('#sBody'); b.style.height = 'auto'; b.style.height = b.scrollHeight + 2 + 'px'; };
 $('#sBody').addEventListener('input', grow);
 $('#sheet').addEventListener('click', e => { if (e.target.id === 'sheet') e.target.close(); }); // 바깥 누르면 닫기
@@ -842,15 +862,27 @@ function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
 }
 // 글마다 주소: ?post=글번호 (로그인한 가족만 볼 수 있음). 계획표의 리뷰를 눌러도 이 글로
 const postUrl = id => `${location.origin}${location.pathname}?post=${id}`;
-let pendingPost = new URLSearchParams(location.search).get('post');
-function gotoPost(id) {
+let pendingPost = qs.get('post'), pendingFlash = !qs.get('tab'); // 공유 링크면 반짝, 새로고침 복원이면 조용히
+function gotoPost(id, { quiet = false } = {}) {
   const el = document.getElementById(`post-${id}`);
   if (!el) return false;
   setTab('feed');
-  history.replaceState(null, '', postUrl(id));
-  el.scrollIntoView({ block: 'start', behavior: 'instant' }); flash(el);
+  setUrl({ tab: 'feed', post: id });
+  el.scrollIntoView({ block: 'start', behavior: 'instant' });
+  if (!quiet) flash(el);
   return true;
 }
+// 피드를 내리고 올리면 화면 위쪽에 걸친 글로 주소를 바꾼다
+let urlTimer;
+addEventListener('scroll', () => {
+  if (tab !== 'feed' || !me || pendingPost) return;
+  clearTimeout(urlTimer);
+  urlTimer = setTimeout(() => {
+    const top = [...document.querySelectorAll('#feed .post')].find(p => p.getBoundingClientRect().bottom > 80);
+    const feedTop = $('#feed').getBoundingClientRect().top;
+    setUrl(top && feedTop < 0 ? { tab: 'feed', post: top.id.slice(5) } : { tab: 'feed' });
+  }, 200);
+}, { passive: true });
 
 $('#fab').onclick = () => openSheet();
 
