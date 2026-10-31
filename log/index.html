@@ -214,7 +214,7 @@ const PLAN_EDITS = [
   ["<p>포장한 빵은 숙소에서, 커피는 블루보틀에서</p>",
    "<p>포장한 빵은 숙소에서, 커피는 숙소 바로 옆 블루보틀에서</p>"],
   ["<article class=\"stop\"><div class=\"time\">09:30<small>산책 택 1</small></div>",
-   "<article class=\"stop\"><div class=\"time\">09:00<small>체크아웃</small></div><div class=\"detail\"><h3>공간7 체크아웃</h3><p>짐을 차에 싣고 나와서 산책 → 점심으로</p><span class=\"tag warn\">12:00까지</span></div></article><article class=\"stop\"><div class=\"time\">09:30<small>산책 택 1</small></div>"],
+   "<article class=\"stop\"><div class=\"time\">09:00<small>체크아웃</small></div><div class=\"detail\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1672188534\">공간7</a> 체크아웃</h3><p>체크아웃 전에 숙소 아침 산책 &amp; <a class=\"subplace\" href=\"https://gonggan7.com/ConnectingLounge\">커넥팅 라운지</a> 구경<br>짐을 차에 싣고 나와서 산책 → 점심으로</p><span class=\"tag warn\">12:00까지</span></div></article><article class=\"stop\"><div class=\"time\">09:30<small>산책 택 1</small></div>"],
   ["<strong>체크아웃 시간 먼저 확인.</strong> 아침 산책 전에 짐을 싣고 출발하면, 숙소로 되돌아오는 이동을 줄일 수 있어요.",
    "<strong>체크아웃은 12시.</strong> 아침 산책 전에 짐을 싣고 체크아웃하면 숙소로 되돌아오지 않아도 돼요."],
   ["data-check=\"stay\">공간7 주소 · 체크아웃 시간 확인</label>",
@@ -229,6 +229,8 @@ const PLAN_EDITS = [
    "식후 <a class=\"subplace place\" href=\"https://map.naver.com/p/entry/place/13491363\">표선해수욕장</a> 가볍게 산책</p><div class=\"option\"><h3><a class=\"place\" href=\"https://naver.me/GtUR6481\">각지불</a></h3><p>추천: 고소한 들깨아구탕</p><p class=\"address\">조천읍 남조로 1751 · 산굼부리·사려니 쪽으로 가면 가까움</p><span class=\"tag\">일 11:00~17:00</span></div></div></article>"],
   ["<article class=\"stop\"><div class=\"time\">12:00<small>점심</small></div><div class=\"detail\"><h3><a class=\"place\" href=\"https://naver.me/GtUR6481\">각지불</a></h3><p>추천: 고소한 들깨아구탕</p><p class=\"address\">조천읍 남조로 1751</p></div></article>",
    "<article class=\"stop\"><div class=\"time\">12:00<small>점심 택 1</small></div><div class=\"detail\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/147696491\">으뜨미</a></h3><p>해물 · 생선 요리</p><p class=\"address\">구좌읍 중산간동로 2287 · 송당, 숙소 근처</p><span class=\"tag\">월 09:30~15:00 · 14:00 주문 마감 · 목 휴무</span><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1859007760\">함덕골목 오라점</a></h3><p>해장국</p><p class=\"address\">제주시 오라로 124 · 제주시내, 동문시장 쪽</p><span class=\"tag\">월 07:00~14:30 · 화 휴무</span></div><div class=\"option\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1027027798\">송당해장국</a></h3><p>소고기해장국 · 선지해장국 · 내장탕</p><p class=\"address\">구좌읍 중산간동로 2270 · 송당, 숙소 근처</p><span class=\"tag warn\">네이버엔 월 08:00~15:00 영업 · 월요일 휴무라는 말도 있어 전화 확인</span></div></div></article>"],
+  ["<article class=\"stop\"><div class=\"time\">09:00<small>커피</small></div>",
+   "<article class=\"stop\"><div class=\"time\">07:30<small>아침 산책</small></div><div class=\"detail\"><h3><a class=\"place\" href=\"https://map.naver.com/p/entry/place/1672188534\">공간7</a> 아침 산책</h3><p>숙소 주변을 가볍게 걷고 커피 마시러</p></div></article><article class=\"stop\"><div class=\"time\">09:00<small>커피</small></div>"],
 ];
 async function boot() {
   const html = PLAN_EDITS.reduce((h, [from, to]) => h.replace(from, to), await (await fetch('../index.html', { cache: 'no-cache' })).text());
