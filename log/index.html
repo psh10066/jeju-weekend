@@ -864,6 +864,14 @@ function gotoVisit(id) { // 피드의 📍 → 계획표 탭에서 그 장소로
 // 글마다 주소: ?post=글번호 (로그인한 가족만 볼 수 있음). 계획표의 리뷰를 눌러도 이 글로
 const postUrl = id => `${location.origin}${location.pathname}?post=${id}`;
 let pendingPost = qs.get('post'), pendingFlash = !qs.get('tab'); // 공유 링크면 반짝, 새로고침 복원이면 조용히
+if (pendingPost && qs.get('cmt')) openComments.add(+pendingPost); // 댓글 알림으로 열면 댓글 펼쳐서
+// 열려 있던 화면에서 알림을 누르면 (sw.js): 최신으로 다시 읽고 그 글로
+navigator.serviceWorker?.addEventListener('message', ({ data }) => {
+  if (!data?.post) return;
+  if (data.cmt) openComments.add(+data.post);
+  pendingPost = data.post; pendingFlash = true;
+  load();
+});
 function gotoPost(id, { quiet = false } = {}) {
   const el = document.getElementById(`post-${id}`);
   if (!el) return false;

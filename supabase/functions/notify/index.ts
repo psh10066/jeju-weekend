@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
     : { title: `${who} 새 글을 올렸어요`, body: [place && `📍 ${place}`, row.body && cut(row.body)].filter(Boolean).join(" · ") || "사진을 올렸어요" };
 
   const { data: subs } = await sb.from("push_subscriptions").select("endpoint, p256dh, auth").neq("user_id", user.id);
-  const payload = JSON.stringify({ ...msg, post: row.post });
+  const payload = JSON.stringify({ ...msg, post: row.post, cmt: !!comment });
   const sent = await Promise.all((subs ?? []).map(({ endpoint, p256dh, auth }) =>
     webpush.sendNotification({ endpoint, keys: { p256dh, auth } }, payload, { TTL: 86400, urgency: "high" })
       .then(() => true)
