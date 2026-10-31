@@ -10,6 +10,7 @@
 .famlog{display:grid;gap:12px;margin:0;padding:14px 0 0}
 .famlog .sum{font-size:13px;font-weight:650}.famlog .sum span{color:var(--muted);font-weight:400}
 .fam{display:flex;gap:16px;overflow-x:auto;padding:4px 2px}
+.fam .lg-x{white-space:nowrap}
 .fam .p{display:flex;flex-direction:column;align-items:center;gap:4px;min-width:64px;font-size:11px;text-align:center}
 .fam .p small{color:var(--muted);font-size:9px;max-width:84px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .av{--ring:#d99b38;width:34px;height:34px;border-radius:50%;display:inline-grid;place-items:center;font-size:20px;line-height:1;background:var(--bg,#f3e6d3);box-shadow:0 0 0 2px var(--paper),0 0 0 4px var(--ring);flex:none}
@@ -87,7 +88,14 @@ textarea.lg-input{min-height:120px;max-height:55vh;resize:vertical;line-height:1
 .feed-empty{text-align:center;color:var(--muted);font-size:13px;padding:40px 0}
 .fab{position:fixed;right:max(16px,calc(50% - 680px));bottom:calc(20px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:50%;border:0;background:var(--ink);color:#fff;font-size:28px;line-height:1;box-shadow:0 6px 20px #263e3655;z-index:6}
 body.feed .overview,body.feed .mobile-nav,body.feed .days,body.feed .checkbar,body.feed .footer{display:none}
-body:not(.feed) #feed{display:none}
+body.recent .overview,body.recent .mobile-nav,body.recent .days,body.recent .checkbar,body.recent .footer{display:none}
+body:not(.feed) #feed,body:not(.recent) #recent{display:none}
+/* 최근 활동 탭 */
+#recent{max-width:520px;margin:14px auto 0}
+.act{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;border:0;border-bottom:1px solid var(--line);background:none;padding:12px 4px;font-size:13px;line-height:1.5;color:var(--ink)}
+.act .t{display:block;color:var(--muted);font-size:11px}.act .q{display:block;color:#4f5c52;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:calc(100vw - 90px)}
+.act.new{background:#d99b3814}.act.new b:after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:#ed4956;margin-left:5px;vertical-align:2px}
+.lg-tabs .badge{display:inline-block;min-width:17px;padding:0 5px;margin-left:4px;border-radius:9px;background:#ed4956;color:#fff;font-size:10px;line-height:17px}
 /* 작성 시트 */
 dialog#sheet,dialog#mini{border:0;border-radius:14px;padding:18px;width:min(480px,calc(100% - 32px));max-height:88vh;background:var(--paper);color:var(--ink);box-shadow:0 10px 50px #0004}
 dialog#sheet::backdrop,dialog#mini::backdrop{background:#263e3666}
@@ -216,7 +224,7 @@ async function boot() {
   main.querySelector('.actions').innerHTML = '<button class="pill" type="button" id="logout" hidden>로그아웃</button>';
   main.querySelector('.mast').insertAdjacentHTML('afterend', `<section class="famlog" aria-label="가족 기록">
     <div class="sum" id="sum"></div><div class="fam" id="fam"></div>
-    <div class="lg-tabs" id="tabs" role="group" aria-label="보기" hidden><button type="button" data-tab="feed">피드</button><button type="button" data-tab="plan">계획표</button></div>
+    <div class="lg-tabs" id="tabs" role="group" aria-label="보기" hidden><button type="button" data-tab="feed">피드</button><button type="button" data-tab="plan">계획표</button><button type="button" data-tab="recent">최근<span class="badge" id="badge" hidden></span></button></div>
     <div class="lg-login" id="auth" hidden><form id="authForm">
       <p>가족만 기록할 수 있어요. 처음이면 ‘가입’을 눌러주세요.</p>
       <label class="lg-field" for="email">이메일</label><input class="lg-input" id="email" type="email" autocomplete="email" required>
@@ -225,7 +233,7 @@ async function boot() {
       <p class="lg-err" id="authErr"></p>
       <div class="lg-btns"><button class="lg-b" id="authBtn">로그인</button><button type="button" class="lg-b ghost" id="modeBtn">처음이에요 · 가입</button></div>
     </form></div></section>
-    <section id="feed" aria-label="가족 피드"></section>`);
+    <section id="feed" aria-label="가족 피드"></section><section id="recent" aria-label="최근 활동"></section>`);
   main.querySelector('.mobile-nav').insertAdjacentHTML('beforeend', '<a href="#extra" class="lg-nav">+ 계획 밖</a>');
 
   // 계획 장소마다 기록 줄(.logrow)을 그 장소 설명 끝에 단다. 한 칸에 장소가 여럿이면 이름을 붙여 한 줄씩
@@ -280,6 +288,9 @@ function setTab(t) {
   tab = t;
   try { localStorage.setItem('jeju-log-tab', t); } catch {}
   document.body.classList.toggle('feed', !!me && t === 'feed');
+  document.body.classList.toggle('recent', !!me && t === 'recent');
+  if (t !== 'recent') seenAt = null; // 다시 열 때는 그때까지 본 것 기준으로
+  renderRecent();
   $('#tabs').querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', b.dataset.tab === t));
 }
 
@@ -308,7 +319,7 @@ async function onAuth(e) {
 function onSession(_ev, session) {
   const user = session?.user ?? null;
   if (me !== undefined && user?.id === me?.id) return; // 토큰 갱신 등 같은 사용자 이벤트는 무시
-  me = user;
+  me = user; loaded = false; seenAt = null;
   $('#auth').hidden = !!me; $('#logout').hidden = !me; $('#tabs').hidden = !me; $('#fab').hidden = !me;
   setTab(tab);
   if (channel) { sb.removeChannel(channel); channel = null; }
@@ -334,7 +345,7 @@ async function loadData() {
     sb.from('comments').select('*').order('created_at'),
     sb.from('likes').select('*').order('created_at'),
   ]);
-  members = m.data || []; visits = v.data || [];
+  members = m.data || []; visits = v.data || []; loaded = true;
   visits.forEach(x => { if (x.plan_ref && !x.plan_ref.includes('|')) x.plan_ref = plan.find(p => p.url === x.plan_ref)?.ref ?? x.plan_ref; }); // 예전 기록(링크만)은 그 링크가 처음 나오는 칸으로
   reviews = r.data || []; comments = c.data || []; likes = l.data || [];
   if (me && !members.some(x => x.user_id === me.id)) {
@@ -475,6 +486,35 @@ function render() {
   Object.entries(typing).forEach(([id, val]) => { const i = document.getElementById(id); if (i) i.value = val; }); // 실시간 갱신에 쓰던 댓글이 날아가지 않게
   if (focused) document.getElementById(focused)?.focus();
   document.querySelectorAll('[data-track]').forEach(t => { if (at[t.dataset.track]) t.scrollLeft = at[t.dataset.track]; });
+  renderRecent();
+}
+
+// 최근 활동: 글·댓글·좋아요·다녀왔어요를 시간순으로. 누르면 그 글(또는 계획표 그 장소)로
+// shortcut: 마지막으로 본 시각은 이 기기에만 저장, 기기를 바꾸면 처음부터 새로 표시됨
+const seenKey = () => `jeju-log-seen-${me?.id}`;
+let seenAt = null, loaded = false; // seenAt: 이번에 최근 탭을 열기 전에 마지막으로 본 시각 (보는 동안은 새 표시 유지)
+const getSeen = () => { try { return localStorage.getItem(seenKey()) || 0; } catch { return 0; } };
+function activities() {
+  const post = id => reviews.find(r => r.id === id);
+  const whose = r => r ? `${roleOf(r.user_id)}의 글` : '지워진 글';
+  const snip = r => r?.body ? r.body.replace(/\s+/g, ' ').slice(0, 60) : r?.photo_paths.length ? `사진·동영상 ${r.photo_paths.length}개` : '';
+  return [
+    ...reviews.map(r => ({ at: r.created_at, who: r.user_id, text: `새 글을 올렸어요${r.visit_id ? ` · 📍${visits.find(v => v.id === r.visit_id)?.place_name ?? ''}` : ''}`, q: snip(r), post: r.id })),
+    ...comments.map(c => ({ at: c.created_at, who: c.user_id, text: `${whose(post(c.review_id))}에 댓글을 달았어요`, q: `“${c.body.replace(/\s+/g, ' ').slice(0, 60)}”`, post: c.review_id, cmt: 1 })),
+    ...likes.map(l => ({ at: l.created_at, who: l.user_id, text: `${whose(post(l.review_id))}을 좋아해요`, q: snip(post(l.review_id)), post: l.review_id })),
+    ...visits.filter(v => v.visited_at).map(v => ({ at: v.created_at, who: v.user_id, text: `📍${v.place_name}에 다녀왔어요`, visit: v.id })),
+  ].filter(a => a.post == null || post(a.post)).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 60);
+}
+function renderRecent() {
+  if (!me) return;
+  const active = document.body.classList.contains('recent') && loaded; // 데이터를 받기 전엔 본 것으로 치지 않음
+  if (active) { seenAt ??= getSeen(); try { localStorage.setItem(seenKey(), new Date().toISOString()); } catch {} }
+  const list = activities(), after = t => a => a.who !== me.id && new Date(a.at) > new Date(t);
+  const fresh = after(active ? seenAt : getSeen()), n = list.filter(after(getSeen())).length;
+  $('#badge').hidden = !n; $('#badge').textContent = n > 9 ? '9+' : n;
+  $('#recent').innerHTML = list.length ? list.map(a => `<button type="button" class="act${fresh(a) ? ' new' : ''}" ${a.post ? `data-act-post="${a.post}"${a.cmt ? ' data-act-cmt="1"' : ''}` : `data-goto="${a.visit}"`}>${av(roleOf(a.who), 'sm')}
+    <span><b>${esc(ga(roleOf(a.who)))}</b> ${esc(a.text)}${a.q ? `<span class="q">${esc(a.q)}</span>` : ''}<span class="t">${when(a.at)}</span></span></button>`).join('')
+    : '<p class="feed-empty">아직 활동이 없어요.</p>';
 }
 
 // ---------- 작성 시트 ----------
@@ -838,6 +878,10 @@ document.addEventListener('click', async e => {
   if (rv) return gotoPost(rv.dataset.post);
   const d = e.target.closest('button')?.dataset;
   if (!d) return;
+  if (d.actPost) { // 최근 활동 → 그 글 (댓글이면 댓글 펼쳐서)
+    if (d.actCmt) { openComments.add(+d.actPost); render(); }
+    return gotoPost(d.actPost);
+  }
   if (d.share) {
     const btn = e.target.closest('button'), url = postUrl(d.share);
     try { await navigator.clipboard.writeText(url); btn.textContent = '복사됨'; } catch { prompt('이 주소를 복사하세요', url); }
